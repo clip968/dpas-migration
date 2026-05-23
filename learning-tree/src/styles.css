@@ -330,6 +330,290 @@ button {
   margin: 0 0 10px;
 }
 
+.detail-modal-kami {
+  --kami-brand: #1b365d;
+  --kami-brand-light: #2d5a8a;
+  --kami-parchment: #f5f4ed;
+  --kami-ivory: #faf9f5;
+  --kami-warm-sand: #e8e6dc;
+  --kami-near-black: #141413;
+  --kami-dark-warm: #3d3d3a;
+  --kami-olive: #504e49;
+  --kami-stone: #6b6a64;
+  --kami-border: #e8e6dc;
+  --kami-border-soft: #e5e3d8;
+  --kami-serif: "Noto Serif KR", "Noto Serif CJK KR", "Source Han Serif KR", "Nanum Myeongjo", Georgia, serif;
+
+  background: var(--kami-parchment);
+  border: 1px solid var(--kami-border);
+  box-shadow: 0 18px 48px rgba(20, 20, 19, 0.22);
+  color: var(--kami-near-black);
+  font-family: var(--kami-serif);
+}
+
+.detail-modal-kami .modal-header {
+  background: var(--kami-ivory);
+  border-bottom: 1px solid var(--kami-border);
+  padding: 28px 32px 24px;
+}
+
+.detail-modal-kami .modal-header > div {
+  border-left: 4px solid var(--kami-brand);
+  padding-left: 16px;
+}
+
+.detail-modal-kami .detail-kind {
+  color: var(--kami-brand);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.detail-modal-kami .modal-header h2 {
+  color: var(--kami-near-black);
+  font-size: 36px;
+  font-weight: 500;
+  line-height: 1.16;
+  margin: 5px 0 8px;
+}
+
+.detail-modal-kami .summary {
+  color: var(--kami-olive);
+  font-size: 16px;
+  line-height: 1.58;
+  margin: 0;
+  max-width: 760px;
+}
+
+.detail-modal-kami .modal-close {
+  background: var(--kami-warm-sand);
+  border-color: var(--kami-border);
+  color: var(--kami-dark-warm);
+}
+
+.detail-modal-kami .modal-content {
+  gap: 30px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  padding: 30px 32px 34px;
+}
+
+.detail-modal-kami .detail-section {
+  border-bottom: 1px solid var(--kami-border-soft);
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+}
+
+.detail-modal-kami .detail-section:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.detail-modal-kami .detail-section h3 {
+  border-left: 3px solid var(--kami-brand);
+  color: var(--kami-near-black);
+  display: block;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.25;
+  margin: 0 0 12px;
+  padding-left: 10px;
+}
+
+.detail-modal-kami .detail-section p,
+.detail-modal-kami .detail-section li {
+  color: var(--kami-dark-warm);
+  font-size: 15px;
+  line-height: 1.58;
+}
+
+.detail-modal-kami .detail-section ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.detail-modal-kami .visual-panel,
+.detail-modal-kami .source-item,
+.detail-modal-kami .candidate-item {
+  background: var(--kami-ivory);
+  border: 1px solid var(--kami-border);
+  box-shadow: 0 4px 20px rgba(20, 20, 19, 0.05);
+}
+
+.detail-modal-kami .visual-panel {
+  gap: 16px;
+  padding: 16px;
+}
+
+.detail-modal-kami .visual-head strong,
+.detail-modal-kami .visual-block > strong,
+.detail-modal-kami .source-item strong,
+.detail-modal-kami .candidate-item strong {
+  color: var(--kami-near-black);
+  font-weight: 500;
+}
+
+.detail-modal-kami .visual-head p,
+.detail-modal-kami .visual-block > p,
+.detail-modal-kami .source-item p,
+.detail-modal-kami .candidate-item p,
+.detail-modal-kami .empty-note {
+  color: var(--kami-olive);
+  line-height: 1.5;
+}
+
+.detail-modal-kami .visual-block {
+  background: #fffdf8;
+  border: 1px solid var(--kami-border-soft);
+  padding: 16px;
+}
+
+.detail-modal-kami .visual-metric-table,
+.detail-modal-kami .comparison-table {
+  background: transparent;
+  border-collapse: collapse;
+  color: var(--kami-dark-warm);
+  font-size: 14px;
+  line-height: 1.48;
+  margin-top: 12px;
+}
+
+.detail-modal-kami .visual-metric-table th,
+.detail-modal-kami .visual-metric-table td,
+.detail-modal-kami .comparison-table th,
+.detail-modal-kami .comparison-table td {
+  background: #fffdf8 !important;
+  border: 0;
+  border-bottom: 1px solid var(--kami-border-soft);
+  color: var(--kami-dark-warm);
+  padding: 10px 12px;
+}
+
+.detail-modal-kami .visual-metric-table tr,
+.detail-modal-kami .comparison-table tr,
+.detail-modal-kami .visual-metric-table .tone-blue,
+.detail-modal-kami .visual-metric-table .tone-teal,
+.detail-modal-kami .visual-metric-table .tone-amber,
+.detail-modal-kami .visual-metric-table .tone-rose,
+.detail-modal-kami .visual-metric-table .tone-violet,
+.detail-modal-kami .visual-metric-table .tone-slate,
+.detail-modal-kami .comparison-table .tone-blue,
+.detail-modal-kami .comparison-table .tone-teal,
+.detail-modal-kami .comparison-table .tone-amber,
+.detail-modal-kami .comparison-table .tone-rose,
+.detail-modal-kami .comparison-table .tone-violet,
+.detail-modal-kami .comparison-table .tone-slate {
+  background: #fffdf8 !important;
+}
+
+.detail-modal-kami .visual-metric-table thead th,
+.detail-modal-kami .comparison-table thead th {
+  background: var(--kami-ivory) !important;
+  border-bottom: 1px solid var(--kami-border);
+  color: var(--kami-near-black);
+  font-weight: 500;
+}
+
+.detail-modal-kami .visual-metric-table tbody th,
+.detail-modal-kami .comparison-table tbody th {
+  color: var(--kami-brand);
+  font-weight: 500;
+  width: 26%;
+}
+
+.detail-modal-kami .visual-metric-table tbody tr:nth-child(even) th,
+.detail-modal-kami .visual-metric-table tbody tr:nth-child(even) td,
+.detail-modal-kami .comparison-table tbody tr:nth-child(even) th,
+.detail-modal-kami .comparison-table tbody tr:nth-child(even) td {
+  background: #faf9f5 !important;
+}
+
+.detail-modal-kami .visual-metric-table tbody tr:last-child th,
+.detail-modal-kami .visual-metric-table tbody tr:last-child td,
+.detail-modal-kami .comparison-table tbody tr:last-child th,
+.detail-modal-kami .comparison-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host {
+  background: var(--kami-ivory);
+  border: 1px solid var(--kami-border-soft);
+  padding: 18px 12px;
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host svg {
+  color: var(--kami-near-black);
+  font-family: var(--kami-serif);
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host svg .node rect,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .node polygon,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .node circle,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .node ellipse {
+  fill: #fffdf8 !important;
+  stroke: var(--kami-brand) !important;
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host svg .edgePaths path,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .flowchart-link {
+  stroke: var(--kami-brand) !important;
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host svg marker path,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .marker {
+  fill: var(--kami-brand) !important;
+  stroke: var(--kami-brand) !important;
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host svg .nodeLabel,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .edgeLabel,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .edgeLabel p,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .label,
+.detail-modal-kami .visual-mermaid .mermaid-host svg text {
+  color: var(--kami-near-black) !important;
+  fill: var(--kami-near-black) !important;
+  font-family: var(--kami-serif) !important;
+  font-weight: 500 !important;
+}
+
+.detail-modal-kami .visual-mermaid .mermaid-host svg .edgeLabel,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .edgeLabel rect,
+.detail-modal-kami .visual-mermaid .mermaid-host svg .labelBkg {
+  background: var(--kami-ivory) !important;
+  fill: var(--kami-ivory) !important;
+}
+
+.detail-modal-kami .visual-ascii pre {
+  background: #30302e;
+  color: #f5f4ed;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Noto Serif KR", monospace;
+  line-height: 1.55;
+}
+
+.detail-modal-kami .visual-ascii small,
+.detail-modal-kami .source-head,
+.detail-modal-kami .candidate-topline,
+.detail-modal-kami .source-item code {
+  color: var(--kami-stone);
+}
+
+.detail-modal-kami .related-list button {
+  background: var(--kami-ivory);
+  border-color: var(--kami-border);
+  color: var(--kami-dark-warm);
+  line-height: 1.45;
+}
+
+.detail-modal-kami .related-list button span,
+.detail-modal-kami .source-head span,
+.detail-modal-kami .candidate-topline span {
+  color: var(--kami-brand);
+  font-weight: 600;
+}
+
 .visual-panel,
 .source-item,
 .candidate-item {

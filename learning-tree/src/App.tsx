@@ -175,8 +175,8 @@ function SourceList({ sources }: { sources: EvidenceSource[] }) {
 
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'neutral',
-  fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  theme: 'base',
+  fontFamily: '"Noto Serif KR", "Noto Serif CJK KR", "Source Han Serif KR", "Nanum Myeongjo", Georgia, serif',
   flowchart: {
     curve: 'basis',
     htmlLabels: true,
@@ -185,13 +185,17 @@ mermaid.initialize({
     padding: 16,
   },
   themeVariables: {
-    fontSize: '15px',
-    primaryColor: '#dbeafe',
-    primaryBorderColor: '#1f6feb',
-    primaryTextColor: '#172033',
-    lineColor: '#1f6feb',
-    secondaryColor: '#fef3c7',
-    tertiaryColor: '#ede9fe',
+    background: '#f5f4ed',
+    mainBkg: '#fffdf8',
+    primaryColor: '#fffdf8',
+    primaryBorderColor: '#1b365d',
+    primaryTextColor: '#141413',
+    secondaryColor: '#faf9f5',
+    tertiaryColor: '#e8e6dc',
+    lineColor: '#1b365d',
+    edgeLabelBackground: '#faf9f5',
+    fontFamily: '"Noto Serif KR", "Noto Serif CJK KR", "Source Han Serif KR", "Nanum Myeongjo", Georgia, serif',
+    fontSize: '16px',
   },
 });
 
@@ -414,6 +418,7 @@ export function App() {
   const relations = getCardRelations(selected.id);
   const affectedCandidates = updateCandidates.filter((candidate) => candidate.affectedCardIds.includes(selected.id));
   const selectedLearningPath = learningPaths.find((path) => path.id === selectedPathId) ?? learningPaths[0];
+  const detailModalClassName = 'detail-modal detail-modal-kami';
 
   const focusGraph = useMemo(
     () => getFocusGraph(selected.id, { depth: focusDepth, edgeKinds: enabledEdgeKinds }),
@@ -565,7 +570,7 @@ export function App() {
       <AnimatePresence>
         {modalOpen ? (
           <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => setModalOpen(false)}>
-            <motion.article className="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }} transition={{ duration: 0.18, ease: 'easeOut' }} onMouseDown={(event) => event.stopPropagation()}>
+            <motion.article className={detailModalClassName} role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }} transition={{ duration: 0.18, ease: 'easeOut' }} onMouseDown={(event) => event.stopPropagation()}>
               <div className="modal-header">
                 <div>
                   <div className="detail-kind">{selected.kind}</div>

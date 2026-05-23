@@ -321,7 +321,7 @@ const blkMqStructureVisual: VisualModel = {
   mermaid: {
     title: '계층 구조',
     code: [
-      '%%{init: {"flowchart": {"nodeSpacing": 28, "rankSpacing": 44, "padding": 16}, "themeVariables": {"fontSize": "16px"}}}%%',
+      '%%{init: {"theme": "base", "flowchart": {"nodeSpacing": 28, "rankSpacing": 44, "padding": 16}, "themeVariables": {"background": "#f5f4ed", "mainBkg": "#fffdf8", "primaryColor": "#fffdf8", "primaryBorderColor": "#1b365d", "primaryTextColor": "#141413", "secondaryColor": "#faf9f5", "tertiaryColor": "#e8e6dc", "lineColor": "#1b365d", "edgeLabelBackground": "#faf9f5", "fontFamily": "Noto Serif KR, Noto Serif CJK KR, Source Han Serif KR, Nanum Myeongjo, Georgia, serif", "fontSize": "16px"}}}%%',
       'flowchart TD',
       '  app["app: read/write/io_uring"] --> bio["bio (block I/O 단위)"]',
       '  bio -- "blk_mq_submit_bio()" --> ctx["per-CPU ctx"]',
