@@ -1,0 +1,69 @@
+# Generated experiment outputs
+scripts/micro_128krr/fio_data/
+scripts/micro_128krr/parsed_data/
+scripts/micro_128krr/result_data/
+scripts/micro_128krr/test_*/
+scripts/micro_4krr/fio_data/
+scripts/micro_4krr/parsed_data/
+scripts/micro_4krr/result_data/
+scripts/micro_4krr/test_*/
+
+# Local run logs
+result.log
+result_macro.log
+scripts/tmp.log
+
+# Macro benchmark outputs
+scripts/ycsb_*_results/
+scripts/results/
+scripts/out/
+scripts/time_log/
+scripts/result_collection/*.txt
+scripts/test/
+
+# Built binaries (keep sources, rebuild via scripts/build_macro_deps.sh)
+scripts/io-generator
+scripts/io-generator[1-4]
+apps/**/ycsb
+apps/**/librocksdb*.a
+apps/**/librocksdb*.so
+
+# Runtime-generated config copies
+scripts/*.runtime
+scripts/*.properties.runtime
+
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Windows download metadata
+*:Zone.Identifier
+
+# Local Git metadata used because the sandbox mounts .git as a placeholder
+.git-real/
+
+# Linux kernel build artifacts (this repo vendors a kernel tree under ./kernel)
+kernel/.config
+kernel/.missing-syscalls.d
+kernel/**/include/generated/
+kernel/**/arch/**/include/generated/
+kernel/**/generated/
+kernel/**/.cache.mk
+kernel/**/.*.cmd
+kernel/**/*.cmd
+kernel/**/*.o
+kernel/**/*.a
+kernel/**/*.so
+kernel/**/*.ko
+kernel/**/*.mod
+kernel/**/*.mod.c
+kernel/**/modules.order
+kernel/**/Module.symvers
+kernel/**/built-in.a
+kernel/**/bounds.s
+kernel/**/asm-offsets.s
+kernel/include/config/
+kernel/scripts/kconfig/lexer.lex.c
+kernel/scripts/kconfig/parser.tab.c
+kernel/scripts/kconfig/parser.tab.h
+kernel/scripts/mod/devicetable-offsets.s
