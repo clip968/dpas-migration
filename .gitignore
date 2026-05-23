@@ -42,6 +42,13 @@ scripts/*.properties.runtime
 # Local Git metadata used because the sandbox mounts .git as a placeholder
 .git-real/
 
+# Learning tree app (Vite)
+learning-tree/node_modules/
+learning-tree/dist/
+
+# Local upstream Linux checkout for migration/code-reading comparisons
+src/linux-upstream/
+
 # Linux kernel build artifacts (this repo vendors a kernel tree under ./kernel)
 kernel/.config
 kernel/.missing-syscalls.d

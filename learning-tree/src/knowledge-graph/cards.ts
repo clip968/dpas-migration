@@ -1,0 +1,2087 @@
+import type { CardSections, EvidenceSource, GraphCard, VisualModel } from './types';
+
+export const cardContentTemplate = {
+  sections: ['plainExplanation', 'whyItMatters', 'repoContext', 'commonConfusions', 'nextSteps', 'sources'],
+  minimums: { commonConfusions: 2, nextSteps: 2, sources: 1 },
+} as const;
+
+export const evidenceSources = {
+  notionMigrationIndex: {
+    id: 'src-notion-dpas-migration-index',
+    label: 'Notion Dpas-migration index',
+    path: 'Dpas-migration',
+    commitHash: 'notion-2026-05-23-index',
+    commitDate: '2026-05-23',
+    commitTitle: 'Dpas-migration project index',
+    note: 'Part 1 build loop부터 Part 9 final report까지 이어지는 migration roadmap입니다.',
+  },
+  notionPart1BuildLoop: {
+    id: 'src-notion-part1-build-loop',
+    label: 'Notion Part 1 - Kernel build/boot loop',
+    path: 'Dpas-migration Part 1',
+    commitHash: 'notion-2026-05-20-part1',
+    commitDate: '2026-05-20',
+    commitTitle: 'Part 1 - Kernel Build Boot Loop',
+    note: 'DPAS 구현 전에 kernel 수정, 빌드, 부팅 또는 compile check, 로그 확인, 복구 루프를 닫는 준비 단계입니다.',
+  },
+  notionStep1: {
+    id: 'src-notion-step1-polled-io',
+    label: 'Notion Part 3 Step 1 - Polled I/O path note',
+    path: 'Dpas-migration Part 3 / 2026-05-23 Step 1',
+    commitHash: 'notion-2026-05-23-step1',
+    commitDate: '2026-05-23',
+    commitTitle: 'Step 1 - Polled I/O Path 코드 리딩 노트',
+    note: 'submit path와 poll path, bi_cookie/tag/hctx 관계, PAS hook 후보를 쉽게 풀어쓴 Step 1 노트입니다.',
+  },
+  notionPart2: {
+    id: 'src-notion-part2-paper-model',
+    label: 'Notion Part 2 - DPAS paper model',
+    path: 'Dpas-migration Part 2',
+    commitHash: 'notion-2026-05-20-part2',
+    commitDate: '2026-05-20',
+    commitTitle: 'Part 2 - DPAS 논문 구조 이해',
+    note: 'Figure 1/3/7/9/10을 migration hook 후보로 변환하는 기준 문서입니다.',
+  },
+  notionPart3: {
+    id: 'src-notion-part3-polling-path',
+    label: 'Notion Part 3 - latest polling path',
+    path: 'Dpas-migration Part 3',
+    commitHash: 'notion-2026-05-23-part3',
+    commitDate: '2026-05-23',
+    commitTitle: 'Part 3 - 최신 Linux blk-mq/NVMe Polling Path 코드 리딩',
+    note: 'bio_poll, blk_mq_poll, blk_hctx_poll, nvme_poll 흐름을 읽는 기준 문서입니다.',
+  },
+  notionPart4: {
+    id: 'src-notion-part4-minimal-pas',
+    label: 'Notion Part 4 - Minimal PAS-only port',
+    path: 'Dpas-migration Part 4',
+    commitHash: 'notion-2026-05-20-part4',
+    commitDate: '2026-05-20',
+    commitTitle: 'Part 4 - Minimal PAS-only 포팅 계획',
+    note: 'PAS sleep-before-poll 최소 포팅 계획입니다.',
+  },
+  notionPart5: {
+    id: 'src-notion-part5-mode-switching',
+    label: 'Notion Part 5 - DPAS mode switching',
+    path: 'Dpas-migration Part 5',
+    commitHash: 'notion-2026-05-20-part5',
+    commitDate: '2026-05-20',
+    commitTitle: 'Part 5 - DPAS Mode Switching 포팅 계획',
+    note: 'CP/PAS normal/PAS overloaded/Interrupt state machine 포팅 계획입니다.',
+  },
+  notionPart6: {
+    id: 'src-notion-part6-interrupt-mode',
+    label: 'Notion Part 6 - Interrupt mode and NVMe mapping',
+    path: 'Dpas-migration Part 6',
+    commitHash: 'notion-2026-05-20-part6',
+    commitDate: '2026-05-20',
+    commitTitle: 'Part 6 - Full Interrupt Mode & NVMe Queue Mapping',
+    note: 'submission-side REQ_POLLED 제어와 NVMe queue mapping 검증 계획입니다.',
+  },
+  notionPart7: {
+    id: 'src-notion-part7-fio-validation',
+    label: 'Notion Part 7 - FIO validation',
+    path: 'Dpas-migration Part 7',
+    commitHash: 'notion-2026-05-20-part7',
+    commitDate: '2026-05-20',
+    commitTitle: 'Part 7 - FIO Microbenchmark & DPAS 성능 검증 계획',
+    note: 'FIO 기반 microbenchmark와 mode breakdown 검증 계획입니다.',
+  },
+  localKernel: {
+    id: 'src-local-linux-upstream',
+    label: 'DPAS_FAST26 kernel source',
+    path: '/home/clip968/DPAS_FAST26/src/linux-upstream and kernel artifacts',
+    commitHash: 'kernel-local-dpas-fast26',
+    commitDate: '2026-05-23',
+    commitTitle: 'Local kernel trees used for migration reading',
+    note: '최신 upstream path와 5.18 artifact hook extraction을 비교할 기준입니다.',
+  },
+} satisfies Record<string, EvidenceSource>;
+
+function sections(
+  plainExplanation: string,
+  whyItMatters: string,
+  repoContext: string,
+  commonConfusions: string[],
+  nextSteps: string[],
+): CardSections {
+  return { plainExplanation, whyItMatters, repoContext, commonConfusions, nextSteps };
+}
+
+const submitPollVisual: VisualModel = {
+  title: 'submit 시점과 poll 시점 분리',
+  description: 'bi_cookie는 submit 때 저장되고, poll 때 다시 읽혀 hctx를 찾습니다.',
+  flowSteps: [
+    { title: 'submit', description: 'bio가 request로 묶이고 polled hctx가 선택됩니다.', tone: 'blue' },
+    { title: 'cookie 저장', description: 'blk_mq_start_request()가 bio->bi_cookie = hctx->queue_num을 저장합니다.', tone: 'teal' },
+    { title: 'poll', description: 'bio_poll()이 cookie를 읽고 blk_mq_poll()로 넘깁니다.', tone: 'amber' },
+    { title: 'driver poll', description: 'blk_hctx_poll()이 mq_ops->poll(), NVMe에서는 nvme_poll()로 내려갑니다.', tone: 'violet' },
+  ],
+  slotGroups: [
+    {
+      title: 'bi_cookie != tag',
+      description: '두 값은 같은 정수가 아니라 서로 다른 주소 체계입니다.',
+      slots: [
+        { label: 'bi_cookie', description: 'hctx->queue_num, poll queue index', tone: 'teal' },
+        { label: 'tag', description: 'hctx 안의 request slot 번호', tone: 'rose' },
+        { label: '초기값', description: 'BLK_QC_T_NONE(-1), poll 불가', tone: 'amber' },
+      ],
+    },
+  ],
+  notes: [
+    'submit 시점은 device에 I/O를 내보내기 위해 request를 시작하는 시점입니다.',
+    'poll 시점은 완료 interrupt를 기다리는 대신 CPU가 completion queue를 직접 확인하는 시점입니다.',
+  ],
+};
+
+const modeVisual: VisualModel = {
+  title: 'DPAS mode 확장 방향',
+  description: 'Minimal PAS를 먼저 닫고, 그 다음 mode switching과 interrupt mode를 분리해서 봅니다.',
+  metricTable: {
+    title: 'mode별 판단 기준',
+    columns: ['핵심 동작', '검증 포인트'],
+    rows: [
+      { label: 'CP', cells: ['continuous polling', 'CPU cost / latency baseline'], tone: 'slate' },
+      { label: 'PAS', cells: ['sleep before poll', 'tail latency가 망가지지 않는 sleep window'], tone: 'teal' },
+      { label: 'DPAS', cells: ['adaptive mode switching', 'mode counter와 transition reason'], tone: 'violet' },
+      { label: 'Interrupt', cells: ['poll path 회피', 'REQ_POLLED와 queue selection까지 확인'], tone: 'rose' },
+    ],
+  },
+  notes: ['completion path만 끊는 구현은 true interrupt mode가 아닐 수 있습니다.'],
+};
+
+const repoOverviewVisual: VisualModel = {
+  title: '학습 트리 한눈에 보기',
+  description: 'Notion Part 번호가 아니라 이해 의존성 순서로 다시 배열한 지도입니다.',
+  asciiArts: [
+    {
+      title: '학습 흐름도',
+      art: [
+        '   [ Part 1 ]                                                      ',
+        '  build/boot                                                       ',
+        '  safety loop                                                      ',
+        '       |                                                           ',
+        '       v                                                           ',
+        '   [ kernel I/O completion model ]                                 ',
+        '       |                                                           ',
+        '       +---> blk-mq ---> ctx / bio / request / hctx / mq_ops       ',
+        '       |                  |        |       |                       ',
+        '       |                  v        v       v                       ',
+        '       |               REQ_POLLED  tag   queue_num == bi_cookie    ',
+        '       v                                                           ',
+        '   [ Step 1: submit path ]  ----cookie---->  [ poll path ]         ',
+        '       blk_mq_start_request()              bio_poll()              ',
+        '                                            |                      ',
+        '                                            v                      ',
+        '                                blk_mq_poll -> blk_hctx_poll       ',
+        '                                            |                      ',
+        '                                            v                      ',
+        '                                       nvme_poll() (driver)        ',
+        '       |                                                           ',
+        '       v                                                           ',
+        '   [ Part 4 Minimal PAS ] -> [ Part 5 mode ] -> [ Part 6 IRQ risk ]',
+        '       |                                                           ',
+        '       +---------> [ Part 7 FIO validation ] <--------+            ',
+      ].join('\n'),
+      caption: '카드 영역(대괄호)은 학습 단계, 화살표는 다음에 봐야 할 카드입니다.',
+    },
+  ],
+  metricTable: {
+    title: 'Notion Part vs 학습 트리 카드',
+    description: '구현 순서(Part)와 이해 순서(카드)는 다릅니다. 같은 행에 있어도 보는 각도가 다릅니다.',
+    columns: ['주요 질문', '대표 카드'],
+    rows: [
+      { label: 'Part 1', cells: ['kernel을 안전하게 만질 수 있는가?', 'part1-build-boot-loop'], tone: 'blue' },
+      { label: 'Part 2', cells: ['논문이 말하는 PAS/DPAS는 무엇인가?', 'paper-pas-core, paper-dpas-state-machine'], tone: 'violet' },
+      { label: 'Part 3', cells: ['최신 kernel poll/IRQ path는?', 'path-submit-polled, path-poll-completion, path-interrupt-completion'], tone: 'teal' },
+      { label: 'Part 4', cells: ['PAS hook을 가장 작게 어디에 넣는가?', 'concept-pas-sleep-before-poll, part4-minimal-pas'], tone: 'amber' },
+      { label: 'Part 5', cells: ['mode switching을 어떻게 표현하는가?', 'part5-mode-switching, concept-dpas-mode'], tone: 'violet' },
+      { label: 'Part 6', cells: ['true interrupt mode가 가능한가?', 'part6-interrupt-mode, risk-interrupt-submission'], tone: 'rose' },
+      { label: 'Part 7', cells: ['실제로 이득이 있는가?', 'part7-validation'], tone: 'slate' },
+    ],
+  },
+  notes: [
+    '왼쪽 사이드바의 "학습 경로" 탭에서 다른 진입점도 골라볼 수 있습니다.',
+    '카드를 클릭하면 같은 카드가 그래프 중앙으로 옮겨가고 연결 관계가 강조됩니다.',
+  ],
+};
+
+const buildLoopVisual: VisualModel = {
+  title: 'Part 1 build/boot safety loop',
+  description: 'DPAS 코드를 넣기 전에 kernel을 수정하고 되돌릴 수 있는 작업 루프를 먼저 검증합니다.',
+  flowSteps: [
+    { title: 'source 준비', description: 'WSL Linux filesystem 안에 upstream/stable kernel과 DPAS artifact를 나란히 둡니다.', tone: 'blue' },
+    { title: 'vanilla build', description: '수정 없는 kernel이 bzImage/modules까지 빌드되는지 먼저 확인합니다.', tone: 'teal' },
+    { title: 'smoke patch', description: 'block/blk-mq.c에 pr_info_once() 같은 되돌리기 쉬운 로그를 넣고 재빌드합니다.', tone: 'amber' },
+    { title: 'log와 복구', description: 'build log, patch, config, dmesg를 남기고 실패 시 이전 kernel로 돌아갈 경로를 확인합니다.', tone: 'rose' },
+  ],
+  asciiArts: [
+    {
+      title: '안전 루프 (loop)',
+      art: [
+        '   +-------------+     +-------------+     +---------------+',
+        '   |  patch 작성 | --> |  make/build | --> |  boot or chk  |',
+        '   +-------------+     +-------------+     +---------------+',
+        '          ^                                       |        ',
+        '          |                                       v        ',
+        '   +-------------+     +-------------+     +---------------+',
+        '   |  rollback   | <-- |  log/dmesg  | <-- |  smoke result |',
+        '   +-------------+     +-------------+     +---------------+',
+      ].join('\n'),
+      caption: '실패해도 항상 이전 kernel로 돌아올 수 있는 사이클이어야 합니다.',
+    },
+  ],
+  comparison: {
+    title: '환경 분리: WSL vs Bare-metal',
+    description: '한 환경에서 모든 것을 하려고 하면 코드 분석과 성능 측정이 섞입니다.',
+    leftLabel: 'WSL (개발 루프)',
+    rightLabel: 'Bare-metal (검증)',
+    leftTone: 'teal',
+    rightTone: 'amber',
+    rows: [
+      { label: '용도', left: '코드 리딩, patch 정리, compile check', right: 'NVMe polling/interrupt 성능 측정' },
+      { label: 'kernel boot', left: '연습용 (성능 신호로 쓰면 안 됨)', right: '실제 DPAS 동작 측정 환경' },
+      { label: 'NVMe', left: '직접 다루지 않음', right: '실제 device, irq affinity 설정' },
+      { label: '결과 활용', left: '"빌드 가능 / 부팅 가능" 확인', right: 'FIO percentile, CPU%, IOPS' },
+    ],
+  },
+  notes: [
+    'WSL은 코드 리딩, patch 정리, compile check에 적합합니다.',
+    'NVMe polling/interrupt 성능 검증은 bare-metal Linux에서 해야 합니다.',
+    '1단계 성공 문장은 "DPAS가 빠르다"가 아니라 "수정 후 되돌릴 수 있다"입니다.',
+  ],
+};
+
+const completionModelVisual: VisualModel = {
+  title: 'Interrupt completion vs Polled completion',
+  description: '같은 NVMe I/O라도 완료를 알리는 방법이 다르면 CPU/latency tradeoff가 완전히 달라집니다.',
+  asciiArts: [
+    {
+      title: 'Interrupt 방식',
+      art: [
+        '  app                                                      ',
+        '   |  read()                                               ',
+        '   v                                                       ',
+        '  block layer  --submit-->  NVMe SQ                        ',
+        '   |                          |                            ',
+        '   |  (sleep/wait)            v                            ',
+        '   |                       device                          ',
+        '   |                          |  완료 시 IRQ 발생          ',
+        '   |  <----- IRQ handler ---- +                            ',
+        '   |   wake up app                                         ',
+        '   v                                                       ',
+        '  app  resumes                                             ',
+      ].join('\n'),
+      caption: 'CPU는 sleep, device가 IRQ로 완료를 알립니다.',
+    },
+    {
+      title: 'Polled 방식',
+      art: [
+        '  app  io_uring IOPOLL / RWF_HIPRI                         ',
+        '   |                                                       ',
+        '   v                                                       ',
+        '  block layer  --submit-->  NVMe poll SQ                   ',
+        '   |                          |                            ',
+        '   v                          v                            ',
+        '  CPU loops:               device                          ',
+        '    bio_poll()                |  완료 -> CQ entry          ',
+        '    -> blk_mq_poll()          v                            ',
+        '    -> blk_hctx_poll()    NVMe poll CQ <----- CPU 직접 확인',
+        '    -> nvme_poll()                                         ',
+        '   |                                                       ',
+        '   v                                                       ',
+        '  완료 처리 후 return                                       ',
+      ].join('\n'),
+      caption: 'CPU가 직접 CQ를 보면서 IRQ 없이 완료를 잡습니다.',
+    },
+  ],
+  comparison: {
+    title: '두 방식의 트레이드오프',
+    leftLabel: 'Interrupt',
+    rightLabel: 'Polled',
+    leftTone: 'rose',
+    rightTone: 'teal',
+    rows: [
+      { label: '완료 통지', left: 'device가 IRQ를 발생', right: 'CPU가 CQ를 직접 확인' },
+      { label: 'CPU', left: '대부분 sleep, 깨어날 때 비용', right: '계속 polling -> CPU 100%' },
+      { label: 'latency', left: 'IRQ 처리 비용 + context switch', right: '아주 낮음 (us 수준)' },
+      { label: '강점', left: 'CPU 효율, 다중 작업', right: '낮은 tail latency' },
+      { label: 'DPAS 위치', left: 'Part 6 interrupt mode 후보', right: 'Part 4/5 PAS/DPAS 본진' },
+    ],
+  },
+  notes: [
+    'DPAS는 "polling이 빠르지만 CPU가 비싸다"는 두 번째 칸의 약점을 줄이려는 연구입니다.',
+    '둘은 mode 전환의 양 끝이며, DPAS는 사이를 동적으로 오가는 모델로 볼 수 있습니다.',
+  ],
+};
+
+const blkMqStructureVisual: VisualModel = {
+  title: 'blk-mq 한눈에 보기',
+  description: 'CPU 쪽 ctx와 device 쪽 hctx를 잇는 다리이며, bio를 request로 바꿔 driver(NVMe 등)에 넘깁니다.',
+  mermaid: {
+    title: '계층 구조',
+    code: [
+      '%%{init: {"flowchart": {"nodeSpacing": 28, "rankSpacing": 44, "padding": 16}, "themeVariables": {"fontSize": "16px"}}}%%',
+      'flowchart TD',
+      '  app["app: read/write/io_uring"] --> bio["bio (block I/O 단위)"]',
+      '  bio -- "blk_mq_submit_bio()" --> ctx["per-CPU ctx"]',
+      '  ctx --> hctx0["hctx #0 (default)"]',
+      '  ctx --> hctx1["hctx #1 (read)"]',
+      '  ctx --> hctx2["hctx #2 (POLL)"]',
+      '  hctx0 --> req0["request slot[tag]"]',
+      '  hctx2 --> req2["request slot[tag]"]',
+      '  req0 -- "mq_ops->queue_rq()" --> drv["NVMe driver"]',
+      '  req2 -- "mq_ops->queue_rq()" --> drv',
+      '  drv --> dev["NVMe device"]',
+    ].join('\n'),
+  },
+  asciiArts: [
+    {
+      title: '핵심 객체 한 줄 요약',
+      art: [
+        '  bio       : block layer 입력 단위 (read/write 의도 + REQ_POLLED)  ',
+        '  request   : driver 제출 단위 (어느 hctx, 그 안의 tag)             ',
+        '  ctx       : per-CPU software context                              ',
+        '  hctx      : hardware queue context (queue_num = poll cookie)      ',
+        '  tag       : 한 hctx 안의 request slot 번호 (cookie != tag)        ',
+        '  mq_ops    : driver callback 모음 (queue_rq, poll, complete...)    ',
+      ].join('\n'),
+    },
+  ],
+  notes: [
+    'ctx와 hctx는 다릅니다. CPU별 ctx 여러 개가 하나의 hctx로 묶일 수 있습니다.',
+    'driver는 mq_ops를 통해서만 호출됩니다. 그래서 PAS hook을 mq_ops 위(blk_mq_poll)에 두면 일반성을 유지할 수 있습니다.',
+  ],
+};
+
+const bioVisual: VisualModel = {
+  title: 'bio 구조 (polled I/O 관점)',
+  description: 'bio는 block I/O의 입력 단위입니다. polled I/O에서는 bi_opf의 REQ_POLLED와 bi_cookie가 핵심입니다.',
+  asciiArts: [
+    {
+      title: 'struct bio 핵심 필드',
+      art: [
+        ' +------------------------------------------------------------+ ',
+        ' |  struct bio                                                | ',
+        ' |  +-------------------+  +-----------------------------+   | ',
+        ' |  | bi_iter           |  | bi_opf  : op + flags        |   | ',
+        ' |  |  - bi_sector      |  |   ex) REQ_OP_READ           |   | ',
+        ' |  |  - bi_size (len)  |  |       | REQ_POLLED <-- 핵심 |   | ',
+        ' |  +-------------------+  |       | REQ_HIPRI 계열      |   | ',
+        ' |                         +-----------------------------+   | ',
+        ' |  +-------------------+  +-----------------------------+   | ',
+        ' |  | bi_io_vec[]       |  | bi_cookie                   |   | ',
+        ' |  |  - 데이터 페이지  |  |   == hctx->queue_num         |   | ',
+        ' |  +-------------------+  |   submit 후에 채워짐         |   | ',
+        ' |                         |   초기값: BLK_QC_T_NONE(-1) |   | ',
+        ' |                         +-----------------------------+   | ',
+        ' +------------------------------------------------------------+ ',
+      ].join('\n'),
+      caption: 'bi_cookie는 "이 bio를 poll하려면 어느 hctx를 봐야 하나"를 가리키는 번호입니다.',
+    },
+  ],
+  notes: [
+    'bio는 driver에 직접 제출되는 단위가 아닙니다. blk-mq가 request로 바꿉니다.',
+    'REQ_POLLED가 없으면 보통의 IRQ completion 경로를 탑니다.',
+  ],
+};
+
+const requestVisual: VisualModel = {
+  title: 'request 구조 (driver 제출 단위)',
+  description: 'request는 blk-mq가 driver에 넘기는 단위입니다. mq_hctx와 tag 두 가지가 핵심입니다.',
+  asciiArts: [
+    {
+      title: 'struct request 핵심 필드',
+      art: [
+        ' +------------------------------------------------------------+ ',
+        ' |  struct request                                            | ',
+        ' |  +-----------------+  +---------------------------------+ | ',
+        ' |  | mq_hctx         |  | tag                             | | ',
+        ' |  |   * 어느 hctx   |  |   * 그 hctx 안 몇 번째 slot      | | ',
+        ' |  |   에 묶였나     |  |   * unique within hctx           | | ',
+        ' |  +-----------------+  +---------------------------------+ | ',
+        ' |  +-----------------+  +---------------------------------+ | ',
+        ' |  | cmd_flags       |  | bio (chain head)                | | ',
+        ' |  |   * REQ_OP_*    |  |   * 이 request를 만든 bio들     | | ',
+        ' |  |   * REQ_POLLED  |  +---------------------------------+ | ',
+        ' |  +-----------------+                                      | ',
+        ' +------------------------------------------------------------+ ',
+      ].join('\n'),
+      caption: 'blk_mq_start_request() 시점에 bio->bi_cookie = mq_hctx->queue_num이 저장됩니다.',
+    },
+  ],
+  comparison: {
+    title: 'request의 두 번호: cookie vs tag',
+    leftLabel: 'mq_hctx->queue_num (= bi_cookie)',
+    rightLabel: 'request->tag',
+    leftTone: 'teal',
+    rightTone: 'rose',
+    rows: [
+      { label: '의미', left: 'poll 대상 hctx index', right: 'hctx 안 request slot 번호' },
+      { label: '주소 체계', left: 'q->queue_hw_ctx[N]', right: 'hctx->tags->bitmap_tags' },
+      { label: '쓰는 곳', left: 'bio_poll(), blk_mq_poll()', right: 'driver request lookup' },
+      { label: 'unique', left: 'request_queue 안에서', right: 'hctx 안에서' },
+    ],
+  },
+  notes: [
+    'tag로 request를 직접 lookup하는 것은 driver 내부 로직이지 poll path 입구가 아닙니다.',
+    'request는 issue 시점에 cookie를 bio에 다시 써 줍니다 (역방향 link).',
+  ],
+};
+
+const hctxVisual: VisualModel = {
+  title: 'hctx (hardware context)',
+  description: 'blk-mq가 device의 hardware queue를 다루기 위해 들고 있는 per-queue 구조입니다.',
+  asciiArts: [
+    {
+      title: 'request_queue → hctx → driver queue',
+      art: [
+        '  request_queue                                                 ',
+        '   |                                                            ',
+        '   v                                                            ',
+        '  queue_hw_ctx[]    ── 인덱스가 곧 cookie ──>                  ',
+        '  +---+---+---+---+                                             ',
+        '  | 0 | 1 | 2 | 3 |   <- bi_cookie = N 이면 hctx[N]을 본다      ',
+        '  +---+---+---+---+                                             ',
+        '   |   |   |   |                                                ',
+        '   v   v   v   v                                                ',
+        '  hctx0 (default)        type=DEFAULT                           ',
+        '  hctx1 (read)           type=READ                              ',
+        '  hctx2 (POLL)           type=HCTX_TYPE_POLL  <-- polled I/O    ',
+        '  hctx3 (POLL)           type=HCTX_TYPE_POLL                    ',
+        '   |                                                            ',
+        '   +-- mq_ops->poll(hctx, iob) -> driver poll callback          ',
+      ].join('\n'),
+      caption: 'REQ_POLLED bio는 HCTX_TYPE_POLL hctx로 들어가고, 그 hctx의 queue_num이 cookie가 됩니다.',
+    },
+  ],
+  notes: [
+    'CPU 1개 = hctx 1개가 아닙니다. CPU별 ctx 여러 개가 하나의 hctx로 묶일 수 있습니다.',
+    'HCTX_TYPE_POLL은 "poll 전용 hctx 종류"이지 PAS의 mode 이름이 아닙니다.',
+  ],
+};
+
+const reqPolledVisual: VisualModel = {
+  title: 'REQ_POLLED가 가는 길',
+  description: '사용자 의도(IOCB_HIPRI 등)가 어떻게 bio flag, hctx 선택, cookie까지 이어지는지 보입니다.',
+  mermaid: {
+    title: 'flag → queue 선택 → cookie 저장',
+    code: [
+      'flowchart TD',
+      '  user["app: io_uring IOPOLL or RWF_HIPRI"] --> kiocb["kiocb.ki_flags |= IOCB_HIPRI"]',
+      '  kiocb --> bio_set["bio->bi_opf |= REQ_POLLED"]',
+      '  bio_set --> submit["blk_mq_submit_bio()"]',
+      '  submit -->|REQ_POLLED 있음| pollq["HCTX_TYPE_POLL hctx 선택"]',
+      '  submit -->|REQ_POLLED 없음| irqq["DEFAULT hctx 선택 (IRQ 경로)"]',
+      '  pollq --> start["blk_mq_start_request()"]',
+      '  start --> cookie["bio->bi_cookie = hctx->queue_num"]',
+      '  cookie --> ready["poll path가 사용할 준비 완료"]',
+    ].join('\n'),
+  },
+  notes: [
+    'REQ_POLLED는 단순 표시가 아니라 queue 선택까지 바꿉니다.',
+    'completion 단계에서만 poll을 끊는다고 해서 이미 POLL hctx로 들어간 I/O가 IRQ I/O가 되지는 않습니다 (interrupt risk의 출발점).',
+  ],
+};
+
+const cookieTagVisual: VisualModel = {
+  title: 'bi_cookie != tag (가장 큰 오해)',
+  description: '두 정수는 서로 다른 주소 체계입니다. cookie는 어느 hctx, tag는 그 안 어느 slot.',
+  asciiArts: [
+    {
+      title: '같은 7이라도 의미가 다르다',
+      art: [
+        '  bi_cookie = 7   --->  q->queue_hw_ctx[7]  =  hctx #7         ',
+        '                                              (poll 대상 큐)   ',
+        '                                                                ',
+        '  request->tag = 7 --->  hctx->tags[7]      =  request slot #7 ',
+        '                                              (그 큐 안의 slot)',
+        '                                                                ',
+        '  즉, bi_cookie 와 tag 는 서로 다른 배열의 인덱스이다.          ',
+      ].join('\n'),
+    },
+  ],
+  comparison: {
+    title: 'cookie vs tag',
+    leftLabel: 'bi_cookie',
+    rightLabel: 'tag',
+    leftTone: 'teal',
+    rightTone: 'rose',
+    rows: [
+      { label: '값의 의미', left: 'hctx 번호', right: 'request slot 번호' },
+      { label: '저장 위치', left: 'bio->bi_cookie', right: 'request->tag' },
+      { label: '언제 정해짐', left: 'blk_mq_start_request()', right: 'request 할당 시 (tag alloc)' },
+      { label: '소비 위치', left: 'bio_poll/blk_mq_poll', right: 'driver의 request lookup' },
+      { label: '초기값', left: 'BLK_QC_T_NONE (-1)', right: '없음 (alloc 못 받음)' },
+    ],
+  },
+  notes: [
+    '한 번이라도 "tag = cookie"로 읽으면 poll path 전체 해석이 어긋납니다.',
+    'BLK_QC_T_NONE은 "poll할 대상이 없다"는 신호로 해석합니다.',
+  ],
+};
+
+const submitPathVisual: VisualModel = {
+  title: 'Submit path (polled I/O)',
+  description: 'I/O가 device로 나가기 전에 REQ_POLLED, hctx, cookie가 정해지는 시점입니다.',
+  mermaid: {
+    title: 'submit 함수 호출 흐름',
+    code: [
+      'flowchart TD',
+      '  app["read/write w/ HIPRI"] --> fops["block/fops.c\\nIOCB_HIPRI -> bi_opf |= REQ_POLLED"]',
+      '  fops --> submit["blk_mq_submit_bio()\\n(block/blk-mq.c)"]',
+      '  submit --> pick["hctx 선택\\nHCTX_TYPE_POLL if REQ_POLLED"]',
+      '  pick --> start["blk_mq_start_request()"]',
+      '  start --> cookie["bio->bi_cookie = mq_hctx->queue_num"]',
+      '  start --> drv["driver mq_ops->queue_rq()"]',
+      '  drv --> dev["NVMe device SQ"]',
+    ].join('\n'),
+  },
+  asciiArts: [
+    {
+      title: '핵심 코드 위치',
+      art: [
+        '  block/fops.c        : IOCB_HIPRI -> REQ_POLLED              ',
+        '  block/blk-mq.h      : HCTX_TYPE_POLL 선택 매크로              ',
+        '  block/blk-mq.c      : blk_mq_submit_bio(), blk_mq_start_request()',
+        '  drivers/nvme/host/  : NVMe queue_rq 구현                       ',
+      ].join('\n'),
+    },
+  ],
+  notes: [
+    'submit path는 "완료를 확인"하지 않습니다. 나중에 poll path가 쓸 단서를 남깁니다.',
+    'cookie는 submit 끝에서 bio에 저장되므로, 그전에 bio_poll()을 부르면 BLK_QC_T_NONE이 보일 수 있습니다.',
+  ],
+};
+
+const pollPathVisual: VisualModel = {
+  title: 'Poll completion path',
+  description: 'submit 끝난 I/O가 끝났는지 CPU가 직접 확인하러 내려가는 함수 호출 사슬입니다.',
+  mermaid: {
+    title: 'poll 함수 호출 사슬',
+    code: [
+      'flowchart TD',
+      '  user["io_uring/aio poll"] --> bp["bio_poll(bio, iob, flags)\\n(block/blk-core.c)"]',
+      '  bp -->|cookie == NONE| skip["return 0 (poll 불가)"]',
+      '  bp -->|cookie OK| mqp["blk_mq_poll(q, cookie, iob, flags)\\n(block/blk-mq.c)"]',
+      '  mqp --> hctxlu["q->queue_hw_ctx[cookie] -> hctx"]',
+      '  hctxlu --> hp["blk_hctx_poll(q, hctx, iob, flags)"]',
+      '  hp --> loop["loop: mq_ops->poll() + cpu_relax()"]',
+      '  loop --> nvme["nvme_poll(hctx, iob)\\n(drivers/nvme/host/pci.c)"]',
+      '  nvme --> cq["NVMe CQ entry 처리 -> ret > 0"]',
+    ].join('\n'),
+  },
+  notes: [
+    'PAS sleep-before-poll hook을 어디에 넣을지는 이 4개 함수 중 하나를 고르는 문제입니다.',
+    'cpu_relax()는 sleep이 아니므로 기본 path에는 PAS가 아직 없습니다.',
+  ],
+};
+
+const bioPollVisual: VisualModel = {
+  title: 'bio_poll() 함수 흐름',
+  description: 'block layer의 polled completion 진입점입니다. cookie를 꺼내 blk-mq로 넘깁니다.',
+  asciiArts: [
+    {
+      title: 'bio_poll() 내부 의사코드',
+      art: [
+        '  bio_poll(bio, iob, flags):',
+        '  ',
+        '    cookie = bio->bi_cookie',
+        '    if (cookie == BLK_QC_T_NONE)',
+        '        return 0            // poll 대상 없음',
+        '    ',
+        '    q = bdev_get_queue(bio->bi_bdev)',
+        '    if (!q || !blk_queue_poll(q))',
+        '        return 0            // queue가 poll 지원 안 함',
+        '    ',
+        '    return blk_mq_poll(q, cookie, iob, flags)',
+        '    //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
+        '    //      cookie를 blk-mq 쪽으로 전달',
+      ].join('\n'),
+      caption: 'bio_poll()은 entry guard 역할이며 실제 polling은 blk_mq_poll()이 수행합니다.',
+    },
+  ],
+  notes: [
+    'bio_poll()에서 hctx나 request에 직접 접근하지 못합니다.',
+    'PAS hook 후보 #1이지만 state 관리가 필요하면 불리합니다.',
+  ],
+};
+
+const blkMqPollVisual: VisualModel = {
+  title: 'blk_mq_poll() - PAS hook 유력 후보',
+  description: 'cookie로 hctx를 찾아 blk_hctx_poll()로 넘기는 지점. 일반성과 hctx 접근이 모두 가능합니다.',
+  asciiArts: [
+    {
+      title: 'blk_mq_poll() 내부 의사코드',
+      art: [
+        '  blk_mq_poll(q, cookie, iob, flags):',
+        '  ',
+        '    hctx = q->queue_hw_ctx[cookie]',
+        '    //      ^^^^^^^^^^^^^^^^^^^^^ cookie = hctx index!',
+        '    ',
+        '    // [PAS hook 삽입 후보 위치]',
+        '    // if (pas_should_sleep(hctx)) schedule_timeout(ns);',
+        '    ',
+        '    ret = blk_hctx_poll(q, hctx, iob, flags)',
+        '    return ret',
+      ].join('\n'),
+      caption: 'hctx에 접근 가능하면서도 NVMe에 종속되지 않아 PAS hook 1차 후보입니다.',
+    },
+  ],
+  metricTable: {
+    title: 'hook 후보 비교',
+    description: 'blk_mq_poll() vs 다른 위치',
+    columns: ['장점', '주의점'],
+    rows: [
+      { label: 'blk_mq_poll()', cells: ['hctx 접근 O, driver 독립적', 'hot path overhead 관리 필요'], tone: 'teal' },
+      { label: 'bio_poll()', cells: ['user-facing 진입점', 'hctx/request 접근 X'], tone: 'blue' },
+      { label: 'blk_hctx_poll()', cells: ['loop 내부, 세밀 제어', '계층 책임 혼란 가능'], tone: 'amber' },
+      { label: 'nvme_poll()', cells: ['CQ에 가장 가까움', 'NVMe 전용, 일반성 X'], tone: 'rose' },
+    ],
+  },
+  notes: [
+    'Part 3 Step 1 결론: blk_mq_poll()이 1차 후보, bio_poll()이 2차 후보입니다.',
+    'Part 4에서 이 판단을 실제 로컬 최신 코드와 대조해야 합니다.',
+  ],
+};
+
+const blkHctxPollVisual: VisualModel = {
+  title: 'blk_hctx_poll() - 실제 polling loop',
+  description: 'driver의 poll callback을 반복 호출하는 busy loop이며, 여기에는 PAS sleep이 없습니다.',
+  asciiArts: [
+    {
+      title: 'blk_hctx_poll() 의사코드',
+      art: [
+        '  blk_hctx_poll(q, hctx, iob, flags):',
+        '  ',
+        '    for (;;) {',
+        '        ret = q->mq_ops->poll(hctx, iob)  // driver poll',
+        '        if (ret > 0)',
+        '            break    // completion 찾음!',
+        '        ',
+        '        if (signal_pending | need_resched)',
+        '            break    // preemption check',
+        '        ',
+        '        cpu_relax()  // <-- sleep이 아님! spin hint일 뿐',
+        '    }',
+        '    return ret',
+      ].join('\n'),
+      caption: 'cpu_relax()는 CPU를 잠깐 쉬게 하는 것이 아니라 busy loop의 전력 hint입니다.',
+    },
+  ],
+  timeline: {
+    title: 'polling loop의 시간축 예시',
+    description: '기본 path에서는 CQ에 완료가 올 때까지 CPU가 100% 회전합니다.',
+    rows: [
+      {
+        label: 'Continuous Polling (CP)',
+        description: 'PAS 없는 기본 동작',
+        segments: [
+          { label: 'poll', duration: '1', state: 'busy' },
+          { label: 'poll', duration: '1', state: 'busy' },
+          { label: 'poll', duration: '1', state: 'busy' },
+          { label: 'poll', duration: '1', state: 'busy' },
+          { label: 'done', duration: '1', state: 'done' },
+        ],
+      },
+      {
+        label: 'PAS (sleep-before-poll)',
+        description: 'DPAS Part 4 목표 동작',
+        segments: [
+          { label: 'sleep', duration: '3', state: 'sleep' },
+          { label: 'poll', duration: '1', state: 'busy' },
+          { label: 'done', duration: '1', state: 'done' },
+        ],
+      },
+    ],
+    legend: [
+      { state: 'busy', label: 'CPU busy polling' },
+      { state: 'sleep', label: 'PAS sleep (CPU idle)' },
+      { state: 'done', label: 'completion 확인' },
+    ],
+  },
+  notes: [
+    'cpu_relax() = PAS sleep이라고 읽으면 안 됩니다.',
+    'PAS가 작동하려면 이 loop에 진입하기 전(blk_mq_poll) 또는 loop 내에서 별도 sleep 삽입이 필요합니다.',
+  ],
+};
+
+const nvmePollVisual: VisualModel = {
+  title: 'nvme_poll() - driver 끝단',
+  description: 'blk_hctx_poll()이 부르는 NVMe driver callback으로, 실제 completion queue를 확인합니다.',
+  asciiArts: [
+    {
+      title: 'nvme_poll() 위치',
+      art: [
+        '  blk_hctx_poll()   q->mq_ops->poll(hctx, iob)',
+        '       |                    |',
+        '       v                    v',
+        '  nvme_poll(hctx, iob)',
+        '       |',
+        '       v',
+        '  nvme_poll_cq(nvmeq)  // NVMe Completion Queue 확인',
+        '       |',
+        '       +-- CQ entry 있음 -> nvme_handle_cqe() -> request 완료',
+        '       +-- CQ entry 없음 -> return 0',
+      ].join('\n'),
+      caption: 'NVMe CQ는 device가 I/O 완료를 알려주는 하드웨어 큐입니다.',
+    },
+  ],
+  notes: [
+    'nvme_poll()은 NVMe 전용이라 여기에 hook을 넣으면 다른 block device에서 동작하지 않습니다.',
+    'DPAS 1차 port는 NVMe를 실험 대상으로 쓰되 hook은 상위(blk_mq_poll)에 두는 전략이 유력합니다.',
+  ],
+};
+
+const pasSleepVisual: VisualModel = {
+  title: 'PAS sleep-before-poll 핵심 아이디어',
+  description: 'busy poll 전에 짧게 쉬어서 CPU를 아끼면서도 latency를 크게 망가뜨리지 않는 것이 목표입니다.',
+  timeline: {
+    title: 'CP vs PAS vs Interrupt 시간축 비교',
+    description: 'I/O 완료까지 각 모드가 CPU를 어떻게 사용하는지 비교합니다.',
+    rows: [
+      {
+        label: 'CP (Continuous)',
+        segments: [
+          { label: 'submit', duration: '1', state: 'submit' },
+          { label: 'busy poll', duration: '4', state: 'busy' },
+          { label: 'done', duration: '1', state: 'done' },
+        ],
+      },
+      {
+        label: 'PAS',
+        segments: [
+          { label: 'submit', duration: '1', state: 'submit' },
+          { label: 'sleep', duration: '2', state: 'sleep' },
+          { label: 'poll', duration: '2', state: 'busy' },
+          { label: 'done', duration: '1', state: 'done' },
+        ],
+      },
+      {
+        label: 'Interrupt',
+        segments: [
+          { label: 'submit', duration: '1', state: 'submit' },
+          { label: 'idle/wait', duration: '3', state: 'idle' },
+          { label: 'IRQ', duration: '1', state: 'check' },
+          { label: 'done', duration: '1', state: 'done' },
+        ],
+      },
+    ],
+    legend: [
+      { state: 'submit', label: 'I/O 제출' },
+      { state: 'busy', label: 'CPU busy poll' },
+      { state: 'sleep', label: 'PAS sleep (CPU idle)' },
+      { state: 'idle', label: 'idle (다른 작업 가능)' },
+      { state: 'check', label: 'IRQ/check' },
+      { state: 'done', label: '완료' },
+    ],
+  },
+  comparison: {
+    title: 'mode별 CPU/Latency tradeoff',
+    leftLabel: 'CPU 사용량',
+    rightLabel: 'Latency',
+    leftTone: 'rose',
+    rightTone: 'teal',
+    rows: [
+      { label: 'CP', left: '매우 높음 (100%)', right: '매우 낮음' },
+      { label: 'PAS', left: '보통 (sleep 구간만큼 감소)', right: '약간 증가 (sleep만큼)' },
+      { label: 'Interrupt', left: '매우 낮음', right: '높음 (IRQ + context switch)' },
+    ],
+  },
+  notes: [
+    'PAS의 핵심: sleep 구간을 잘 정하면 CPU를 크게 아끼면서 latency 손해는 작게 가져갈 수 있습니다.',
+    'sleep 값이 너무 크면 tail latency 악화, 너무 작으면 CPU 절약 효과 없음.',
+    'DPAS는 이 sleep 값을 workload에 따라 동적으로 조절하는 확장입니다.',
+  ],
+};
+
+const interruptRiskVisual: VisualModel = {
+  title: 'Interrupt mode의 submission-side 문제',
+  description: 'poll을 안 해도 submit 시점에 이미 poll hctx로 들어간 I/O는 interrupt 경로가 아닙니다.',
+  asciiArts: [
+    {
+      title: '위험 시나리오',
+      art: [
+        '  ===== 잘못된 가정 =====                                       ',
+        '  "poll 함수를 호출 안 하면 interrupt mode다"                     ',
+        '  ',
+        '  실제 상황:',
+        '    submit: bio + REQ_POLLED -> HCTX_TYPE_POLL hctx -> NVMe poll SQ',
+        '                               ^^^^^^^^^^^^^^^^^^',
+        '                               이미 poll 전용 queue로 들어감!',
+        '    ',
+        '    completion: poll 안 함... 하지만:',
+        '      - I/O는 poll queue에 있음',
+        '      - IRQ가 이 queue를 처리하는지 불분명',
+        '      - 완료가 안 올 수도 있음!',
+        '  ',
+        '  ===== 올바른 접근 =====                                        ',
+        '  true interrupt mode는 미래 I/O에서 REQ_POLLED를 제거하거나',
+        '  queue mapping을 바꿔서 submit 시점부터 IRQ queue로 가야 함.',
+      ].join('\n'),
+      caption: 'Part 6의 핵심 질문: future I/O의 submit-side까지 바꿔야 하는가?',
+    },
+  ],
+  notes: [
+    'completion-only skip은 pseudo-interrupt이며 진짜 interrupt mode가 아닐 수 있습니다.',
+    'FIO latency가 바뀌어도 queue mapping 증거 없이는 판단할 수 없습니다.',
+    'Part 6에서 REQ_POLLED 제어와 NVMe queue mapping 검증이 별도로 필요합니다.',
+  ],
+};
+
+const part4Visual: VisualModel = {
+  title: 'Minimal PAS-only 구현 범위',
+  description: 'full DPAS가 아니라 sleep-before-poll 하나만 최소 형태로 넣고 검증하는 단계입니다.',
+  metricTable: {
+    title: 'Part 4 범위 vs 범위 밖',
+    description: '한 번에 모든 것을 구현하면 실패 원인을 분리할 수 없습니다.',
+    columns: ['포함 사항', '제외 (Part 5/6으로 미룸)'],
+    rows: [
+      { label: 'hook', cells: ['blk_mq_poll()에 sleep 삽입', 'mode switching 전체'], tone: 'teal' },
+      { label: 'state', cells: ['per-hctx sleep_ns 변수', 'DPAS state machine (CP/PAS/IRQ)'], tone: 'teal' },
+      { label: 'knob', cells: ['sysfs로 sleep_ns 수동 설정', 'adaptive UNDER/OVER update'], tone: 'teal' },
+      { label: 'driver', cells: ['NVMe로 실험', '범용 block device 지원'], tone: 'blue' },
+      { label: '검증', cells: ['FIO: latency/CPU/IOPS 비교', 'mode counter, transition trace'], tone: 'amber' },
+    ],
+  },
+  flowSteps: [
+    { title: '1. hook 위치 확정', description: 'blk_mq_poll() 진입 시 hctx 접근 가능한 지점', tone: 'blue' },
+    { title: '2. sleep 구현', description: 'schedule_timeout_interruptible(ns) 또는 usleep_range()', tone: 'teal' },
+    { title: '3. sysfs knob', description: '/sys/block/nvme0n1/queue/pas_sleep_ns로 외부 조절', tone: 'amber' },
+    { title: '4. FIO 비교', description: 'sleep=0(CP), sleep=N(PAS) 두 케이스 latency/CPU 비교', tone: 'violet' },
+  ],
+  notes: [
+    'Part 4 성공 = "sleep hook이 latency를 소폭 올리고 CPU를 유의미하게 줄인다" 확인',
+    'mode switching은 Part 5로, interrupt queue mapping은 Part 6으로 확실히 분리합니다.',
+  ],
+};
+
+const part7Visual: VisualModel = {
+  title: 'FIO 검증 계획',
+  description: 'DPAS 정책이 실제로 의도한 효과를 내는지 측정 기준과 비교 방법을 정합니다.',
+  metricTable: {
+    title: 'FIO 핵심 관측 지표',
+    columns: ['의미', '위험 신호'],
+    rows: [
+      { label: 'avg latency', cells: ['평균 응답 시간', '급격한 증가 -> sleep 과다'], tone: 'blue' },
+      { label: 'p99 latency', cells: ['tail latency', 'p99가 avg의 5배 이상 -> 문제'], tone: 'rose' },
+      { label: 'CPU usage', cells: ['polling core의 CPU%', 'CP 대비 감소 안 보임 -> hook 미동작'], tone: 'amber' },
+      { label: 'IOPS', cells: ['초당 I/O 횟수', '10% 이상 감소 -> throughput 손해'], tone: 'violet' },
+      { label: 'mode counter', cells: ['각 mode 진입 횟수', 'IRQ 0회 -> IRQ mode 미동작'], tone: 'teal' },
+    ],
+  },
+  comparison: {
+    title: '실험 시나리오',
+    leftLabel: 'baseline (CP)',
+    rightLabel: 'PAS (sleep N us)',
+    leftTone: 'slate',
+    rightTone: 'teal',
+    rows: [
+      { label: 'FIO job', left: 'randread, iodepth=1, iopoll=1', right: '동일' },
+      { label: '기대 CPU', left: '~100%', right: '50~80%' },
+      { label: '기대 latency', left: '~3us avg', right: '~5us avg (약간 증가)' },
+      { label: '성공 기준', left: '-', right: 'CPU 20%+ 감소, p99 < 10x baseline' },
+    ],
+  },
+  notes: [
+    '평균만 보면 tail이 숨습니다. 반드시 percentile도 같이 관측합니다.',
+    'DPAS mode counter가 없으면 어떤 mode가 실제로 사용됐는지 추측만 가능합니다.',
+    'WSL에서는 성능 측정이 불가합니다. bare-metal NVMe 환경에서만 유효합니다.',
+  ],
+};
+
+const misSubmitPollVisual: VisualModel = {
+  title: 'submit path vs poll path 분리',
+  description: '두 경로를 섞으면 bi_cookie가 어디서 생기고 어디서 쓰이는지 모두 혼동됩니다.',
+  asciiArts: [
+    {
+      title: '시간축으로 보는 두 경로',
+      art: [
+        '  시간 ─────────────────────────────────────────────────────>    ',
+        '  ',
+        '       [submit path]            (device 처리중)     [poll path]  ',
+        '   ┌─────────────────────┐                    ┌──────────────┐ ',
+        '   │ REQ_POLLED 설정     │                    │ bio_poll()   │ ',
+        '   │ hctx 선택           │     ..device..     │ blk_mq_poll()│ ',
+        '   │ blk_mq_start_req() │                    │ nvme_poll()  │ ',
+        '   │ cookie 저장!        │                    │ cookie 소비! │ ',
+        '   └─────────────────────┘                    └──────────────┘ ',
+        '                         │                    │                 ',
+        '               cookie 생성 ─────────────────> cookie 소비       ',
+      ].join('\n'),
+      caption: 'cookie는 submit 끝에서 태어나고 poll 시작에서 사용됩니다. 두 시점은 다릅니다.',
+    },
+  ],
+  notes: [
+    'submit은 "보내는 길", poll은 "확인하는 길"입니다. 섞어서 설명하지 않습니다.',
+    'interrupt risk도 이 분리에서 나옵니다: queue 선택은 submit에서 이미 결정됩니다.',
+  ],
+};
+
+const misCpuRelaxVisual: VisualModel = {
+  title: 'cpu_relax() vs PAS sleep',
+  description: '둘은 완전히 다른 것입니다. cpu_relax는 busy wait hint, PAS sleep은 scheduler에 양보.',
+  comparison: {
+    title: 'cpu_relax() vs sleep-before-poll',
+    leftLabel: 'cpu_relax()',
+    rightLabel: 'PAS sleep',
+    leftTone: 'rose',
+    rightTone: 'teal',
+    rows: [
+      { label: '정체', left: 'busy loop 안의 CPU hint', right: '일정 시간 동안 CPU를 양보하는 sleep' },
+      { label: 'CPU 사용', left: '100% (계속 회전)', right: '0% (sleep 구간 idle)' },
+      { label: '위치', left: 'blk_hctx_poll() loop 안', right: 'blk_mq_poll() 진입 부근 (Part 4)' },
+      { label: '효과', left: '전력 절약 hint, latency 변화 없음', right: 'CPU 절약 대신 latency 약간 증가' },
+      { label: 'scheduler', left: '양보 안 함', right: '양보함 (schedule_timeout 등)' },
+    ],
+  },
+  asciiArts: [
+    {
+      title: '시간축 비교',
+      art: [
+        '  cpu_relax (기본):',
+        '  [poll] [poll] [poll] [poll] [poll] ... [done]  <- CPU 100%',
+        '          ^      ^      ^',
+        '         cpu_relax (tiny pause, 여전히 busy)',
+        '  ',
+        '  PAS sleep:',
+        '  [   sleep (CPU idle)   ] [poll] [done]        <- CPU 30%',
+      ].join('\n'),
+    },
+  ],
+  notes: [
+    '"cpu_relax가 있으니 이미 PAS가 구현돼 있다"는 틀린 해석입니다.',
+    'cpu_relax 자리에 sleep을 넣는 것도 바로 정답은 아닙니다. 위치와 context를 따져야 합니다.',
+  ],
+};
+
+const paperPasVisual: VisualModel = {
+  title: '논문 PAS -> kernel hook 번역',
+  description: '논문의 figure와 아이디어를 최신 kernel 함수로 옮기는 bridge입니다.',
+  mermaid: {
+    title: '논문 Figure -> kernel 위치 대응',
+    code: [
+      'flowchart LR',
+      '  fig1["논문 Figure 1\\nI/O completion taxonomy"] --> model["kernel-io-completion-model"]',
+      '  fig3["논문 Figure 3\\nPAS core idea"] --> pas["concept-pas-sleep-before-poll"]',
+      '  fig7["논문 Figure 7\\nsleep window"] --> hook["blk_mq_poll() hook 후보"]',
+      '  fig9["논문 Figure 9\\nDPAS transitions"] --> mode["concept-dpas-mode"]',
+      '  fig10["논문 Figure 10\\nstate machine"] --> sm["paper-dpas-state-machine"]',
+    ].join('\n'),
+  },
+  notes: [
+    '논문 용어를 kernel grep으로 1:1 검색하면 안 됩니다. kernel엔 PAS라는 함수가 없습니다.',
+    'PAS는 "poll 전에 쉬자"라는 정책이고, kernel에서는 이를 어떤 함수 앞에 schedule_timeout으로 번역해야 합니다.',
+  ],
+};
+
+const paperDpasVisual: VisualModel = {
+  title: 'DPAS State Machine (Figure 10)',
+  description: '부하에 따라 CP/PAS normal/PAS overloaded/Interrupt 사이를 전환하는 모델입니다.',
+  mermaid: {
+    title: 'DPAS mode transition',
+    code: [
+      'stateDiagram-v2',
+      '  [*] --> CP',
+      '  CP --> PAS_normal : load increases',
+      '  PAS_normal --> CP : load decreases',
+      '  PAS_normal --> PAS_overloaded : load high',
+      '  PAS_overloaded --> PAS_normal : load decreases',
+      '  PAS_overloaded --> Interrupt : overload sustained',
+      '  Interrupt --> PAS_overloaded : load decreases',
+      '  Interrupt --> CP : load low',
+    ].join('\n'),
+  },
+  metricTable: {
+    title: 'kernel 구현 요소',
+    description: '각 mode를 kernel에 옮기기 위해 필요한 것들',
+    columns: ['kernel state 필요', '판정 기준'],
+    rows: [
+      { label: 'CP', cells: ['sleep_ns = 0 (Part 4 baseline)', 'workload underloaded'], tone: 'slate' },
+      { label: 'PAS normal', cells: ['sleep_ns = UNDER update 값', 'average latency < threshold'], tone: 'teal' },
+      { label: 'PAS overloaded', cells: ['sleep_ns = OVER update 값', 'queue depth > threshold'], tone: 'amber' },
+      { label: 'Interrupt', cells: ['REQ_POLLED 제거 필요!', 'sustained overload + timer fail'], tone: 'rose' },
+    ],
+  },
+  notes: [
+    'PAS-only (Part 4)는 state machine 없이도 가능합니다. sleep_ns를 수동으로 설정하면 됩니다.',
+    'full DPAS (Part 5)부터 mode counter, transition reason, UNDER/OVER update가 모두 필요합니다.',
+    'Interrupt state는 completion skip만으로 불충분할 수 있습니다 (interrupt risk 참조).',
+  ],
+};
+
+const ctxVisual: VisualModel = {
+  title: 'blk_mq_ctx (software context)',
+  description: 'CPU별 software queue입니다. submit 시점에 현재 CPU의 ctx가 선택되고, op flag에 따라 어느 hctx로 갈지 ctx->hctxs[]로 결정됩니다.',
+  asciiArts: [
+    {
+      title: 'struct blk_mq_ctx 핵심 필드 (block/blk-mq.h)',
+      art: [
+        ' +------------------------------------------------------------+ ',
+        ' |  struct blk_mq_ctx                                         | ',
+        ' |  +------------------+  +--------------------------------+ | ',
+        ' |  | cpu              |  | hctxs[HCTX_MAX_TYPES]          | | ',
+        ' |  |  (이 ctx가       |  |   [DEFAULT] -> hctx #0         | | ',
+        ' |  |   붙은 CPU)      |  |   [READ]    -> hctx #1         | | ',
+        ' |  +------------------+  |   [POLL]    -> hctx #2 (POLL)  | | ',
+        ' |  +------------------+  +--------------------------------+ | ',
+        ' |  | rq_lists[]       |  | queue (request_queue *)        | | ',
+        ' |  |  per-type pending|  |                                | | ',
+        ' |  +------------------+  +--------------------------------+ | ',
+        ' +------------------------------------------------------------+ ',
+      ].join('\n'),
+      caption: 'ctx는 CPU 쪽, hctx는 device queue 쪽입니다. request->mq_ctx와 request->mq_hctx가 둘 다 존재합니다.',
+    },
+  ],
+  mermaid: {
+    title: 'ctx -> hctx 매핑',
+    code: [
+      'flowchart TD',
+      '  cpu["submit CPU"] --> ctx["blk_mq_ctx (per-CPU)"]',
+      '  bio["bio->bi_opf"] --> map["blk_mq_get_hctx_type(opf)"]',
+      '  map -->|REQ_POLLED| poll["ctx->hctxs[HCTX_TYPE_POLL]"]',
+      '  map -->|REQ_OP_READ| read["ctx->hctxs[HCTX_TYPE_READ]"]',
+      '  map -->|else| def["ctx->hctxs[HCTX_TYPE_DEFAULT]"]',
+      '  poll --> hctx["blk_mq_hw_ctx"]',
+      '  read --> hctx',
+      '  def --> hctx',
+    ].join('\n'),
+  },
+  notes: [
+    'blk_mq_map_queue(opf, ctx)는 ctx->hctxs[blk_mq_get_hctx_type(opf)]를 반환합니다 (block/blk-mq.h).',
+    'CPU 1개 = hctx 1개가 아닙니다. 여러 CPU ctx가 하나의 hctx로 매핑될 수 있습니다.',
+    'DPAS state를 per-CPU ctx에 둘지 per-hctx에 둘지는 Part 4/5 설계 선택입니다.',
+  ],
+};
+
+const mqOpsVisual: VisualModel = {
+  title: 'blk_mq_ops (driver callback table)',
+  description: 'block layer가 driver를 호출하는 유일한 인터페이스입니다. submit은 queue_rq, completion 확인은 poll, interrupt 완료는 complete를 탑니다.',
+  asciiArts: [
+    {
+      title: 'struct blk_mq_ops 핵심 callback (include/linux/blk-mq.h)',
+      art: [
+        '  struct blk_mq_ops {',
+        '      queue_rq(hctx, bd)   // submit: request -> device SQ',
+        '      poll(hctx, iob)       // poll path: CQ 확인',
+        '      complete(rq)          // interrupt path: request 완료',
+        '      timeout(rq)           // request timeout',
+        '      init_hctx / exit_hctx // queue setup/teardown',
+        '  };',
+        '  ',
+        '  NVMe PCI (drivers/nvme/host/pci.c):',
+        '      .queue_rq = nvme_queue_rq',
+        '      .poll     = nvme_poll',
+        '      // complete는 blk-mq generic path 사용',
+      ].join('\n'),
+      caption: 'PAS hook을 driver poll 안에 넣으면 NVMe 전용이 됩니다. block layer 공통 지점(blk_mq_poll)이 일반성 면에서 유리합니다.',
+    },
+  ],
+  comparison: {
+    title: 'mq_ops callback vs DPAS 관심사',
+    leftLabel: 'submit side',
+    rightLabel: 'completion side',
+    leftTone: 'blue',
+    rightTone: 'teal',
+    rows: [
+      { label: 'callback', left: 'queue_rq()', right: 'poll() / complete()' },
+      { label: '호출 시점', left: 'request issue', right: 'CPU poll 또는 IRQ/softirq' },
+      { label: 'NVMe 구현', left: 'nvme_queue_rq()', right: 'nvme_poll() / blk_mq_complete_request()' },
+      { label: 'DPAS hook', left: 'REQ_POLLED 제어 (Part 6)', right: 'sleep-before-poll (Part 4/5)' },
+    ],
+  },
+  notes: [
+    'blk_hctx_poll()은 q->mq_ops->poll(hctx, iob)만 반복 호출합니다. driver가 poll을 구현하지 않으면 polled I/O가 동작하지 않습니다.',
+    'blk_mq_can_poll(q)는 BLK_FEAT_POLL과 HCTX_TYPE_POLL queue 수가 모두 있어야 true입니다 (block/blk-mq.h).',
+  ],
+};
+
+const startRequestVisual: VisualModel = {
+  title: 'blk_mq_start_request() - cookie 저장 지점',
+  description: 'driver가 request를 실제 issue하기 직전에 호출합니다. polled bio라면 여기서 bi_cookie = hctx->queue_num이 저장됩니다.',
+  asciiArts: [
+    {
+      title: '최신 kernel 코드 (block/blk-mq.c:1368-1393)',
+      art: [
+        '  void blk_mq_start_request(struct request *rq) {',
+        '      ...',
+        '      WRITE_ONCE(rq->state, MQ_RQ_IN_FLIGHT);',
+        '      rq->mq_hctx->tags->rqs[rq->tag] = rq;',
+        '      ',
+        '      if (rq->bio && rq->bio->bi_opf & REQ_POLLED)',
+        '          WRITE_ONCE(rq->bio->bi_cookie,',
+        '                     rq->mq_hctx->queue_num);  // <-- 핵심!',
+        '  }',
+      ].join('\n'),
+      caption: 'cookie는 bio 생성 시점이 아니라 request start 시점에 채워집니다.',
+    },
+  ],
+  flowSteps: [
+    { title: 'request 할당', description: 'blk_mq_get_new_requests()에서 tag와 mq_hctx가 정해짐', tone: 'blue' },
+    { title: 'driver issue', description: 'nvme_queue_rq() 등이 SQ에 command 기록', tone: 'amber' },
+    { title: 'start_request', description: 'blk_mq_start_request() 호출 -> bi_cookie 저장', tone: 'teal' },
+    { title: 'poll 준비 완료', description: '이후 bio_poll()이 cookie로 hctx lookup 가능', tone: 'violet' },
+  ],
+  notes: [
+    'start_request 전에 bio_poll()을 호출하면 bi_cookie가 BLK_QC_T_NONE일 수 있습니다.',
+    'cookie 값은 rq->mq_hctx->queue_num이며 request->tag와 무관합니다.',
+    'NVMe nvme_queue_rq()는 prep 후 SQ doorbell을 치지만, cookie 저장은 block layer start_request에서 일어납니다.',
+  ],
+};
+
+const interruptCompletionVisual: VisualModel = {
+  title: 'Interrupt completion path',
+  description: 'REQ_POLLED가 없는 일반 I/O는 device IRQ -> driver -> blk_mq_complete_request() -> mq_ops->complete() 또는 softirq 경로로 완료됩니다.',
+  mermaid: {
+    title: 'IRQ completion 흐름',
+    code: [
+      'flowchart TD',
+      '  dev["NVMe device IRQ"] --> isr["driver IRQ handler"]',
+      '  isr --> cq["CQ entry 처리"]',
+      '  cq --> complete["blk_mq_complete_request(rq)\\n(block/blk-mq.c)"]',
+      '  complete -->|same CPU/cache| local["mq_ops->complete(rq)"]',
+      '  complete -->|remote CPU| ipi["IPI + BLOCK_SOFTIRQ"]',
+      '  ipi --> softirq["blk_done_softirq()\\n-> mq_ops->complete(rq)"]',
+      '  local --> endio["bio_endio() -> user wake"]',
+      '  softirq --> endio',
+    ].join('\n'),
+  },
+  comparison: {
+    title: 'interrupt vs polled completion',
+    leftLabel: 'Interrupt (DEFAULT hctx)',
+    rightLabel: 'Polled (POLL hctx)',
+    leftTone: 'rose',
+    rightTone: 'teal',
+    rows: [
+      { label: 'submit queue', left: 'HCTX_TYPE_DEFAULT', right: 'HCTX_TYPE_POLL' },
+      { label: '완료 통지', left: 'IRQ + softirq', right: 'CPU가 mq_ops->poll()' },
+      { label: 'CPU', left: '대부분 idle', right: 'busy poll (PAS 전)' },
+      { label: '핵심 함수', left: 'blk_mq_complete_request()', right: 'bio_poll() -> blk_mq_poll()' },
+    ],
+  },
+  notes: [
+    'completion model 카드의 interrupt 쪽 실체입니다. poll path와 대칭으로 봐야 합니다.',
+    'DPAS interrupt mode는 이 경로로 "돌아가야" 하지만, 이미 POLL hctx로 submit된 I/O는 별도 문제입니다 (interrupt risk).',
+    'blk_mq_complete_request_remote()는 submit CPU와 다른 core에서 완료할 때 IPI를 사용합니다.',
+  ],
+};
+
+const ioUringIopollVisual: VisualModel = {
+  title: 'io_uring IOPOLL 진입 경로',
+  description: '사용자가 io_uring_setup(IORING_SETUP_IOPOLL)로 ring을 만들면 read/write path에서 IOCB_HIPRI -> REQ_POLLED -> iocb_bio_iopoll -> bio_poll()로 이어집니다.',
+  mermaid: {
+    title: 'io_uring -> block poll 연결',
+    code: [
+      'flowchart TD',
+      '  setup["io_uring_setup(IORING_SETUP_IOPOLL)"] --> rw["io_uring/rw.c submit"]',
+      '  rw --> hipri["kiocb->ki_flags |= IOCB_HIPRI"]',
+      '  hipri --> fops["block/fops.c: bio->bi_opf |= REQ_POLLED"]',
+      '  fops --> submit["blk_mq_submit_bio()"]',
+      '  submit --> polluser["file->f_op->iopoll\\n= iocb_bio_iopoll"]',
+      '  polluser --> bp["bio_poll(bio, iob, flags)"]',
+      '  bp --> mqp["blk_mq_poll()"]',
+    ].join('\n'),
+  },
+  asciiArts: [
+    {
+      title: '최신 kernel 코드 위치',
+      art: [
+        '  io_uring/rw.c:876-881',
+        '    if (ctx->flags & IORING_SETUP_IOPOLL) {',
+        '        kiocb->ki_flags |= IOCB_HIPRI;',
+        '        ...',
+        '    }',
+        '  ',
+        '  block/fops.c:381-384',
+        '    if (iocb->ki_flags & IOCB_HIPRI) {',
+        '        bio->bi_opf |= REQ_POLLED;',
+        '        submit_bio(bio);',
+        '        WRITE_ONCE(iocb->private, bio);  // poll용 bio 저장',
+        '    }',
+        '  ',
+        '  block/blk-core.c:988-1017',
+        '    iocb_bio_iopoll() -> bio_poll(bio, iob, flags)',
+      ].join('\n'),
+    },
+  ],
+  notes: [
+    'FIO --ioengine=io_uring --hipri=1 실험은 이 경로를 탑니다.',
+    'IOCB_HIPRI는 userspace RWF_HIPRI와 같은 bit입니다 (include/linux/fs.h).',
+    'HYBRID_IOPOLL은 별도 flag로, Part 7 FIO 설계 시 일반 IOPOLL과 구분해야 합니다.',
+  ],
+};
+
+const part5Visual: VisualModel = {
+  title: 'Part 5 DPAS Mode Switching',
+  description: 'Part 4 PAS-only를 넘어 workload에 따라 sleep_ns와 mode를 자동 전환하는 full DPAS state machine 포팅 단계입니다.',
+  metricTable: {
+    title: 'Part 5에서 추가되는 것',
+    columns: ['kernel 구현', '논문 대응'],
+    rows: [
+      { label: 'mode state', cells: ['per-hctx/per-CPU CP/PAS/IRQ state', 'Figure 10 state'], tone: 'violet' },
+      { label: 'UNDER update', cells: ['latency 낮을 때 sleep_ns 감소', 'PAS normal tuning'], tone: 'teal' },
+      { label: 'OVER update', cells: ['queue depth 높을 때 sleep_ns 증가', 'PAS overloaded tuning'], tone: 'amber' },
+      { label: 'counter', cells: ['mode 진입/전환 횟수, reason', '검증/디버그 필수'], tone: 'blue' },
+      { label: 'timer fail', cells: ['overload sustained -> IRQ 후보', 'Interrupt transition'], tone: 'rose' },
+    ],
+  },
+  flowSteps: [
+    { title: 'Part 4 PAS 검증 완료', description: '고정 sleep_ns hook이 동작함을 FIO로 확인', tone: 'blue' },
+    { title: 'state machine 추가', description: 'CP/PAS normal/PAS overloaded 상태 변수', tone: 'teal' },
+    { title: 'UNDER/OVER update', description: 'latency/queue depth 기반 sleep_ns 조절', tone: 'amber' },
+    { title: 'transition counter', description: 'sysfs/trace로 mode breakdown 관측', tone: 'violet' },
+  ],
+  notes: [
+    'Part 5는 Part 4 hook 위치(blk_mq_poll)를 유지한 채 정책만 확장하는 것이 이상적입니다.',
+    'mode switching과 interrupt queue mapping(Part 6)을 동시에 구현하면 실패 원인 분리가 어렵습니다.',
+  ],
+};
+
+const part6Visual: VisualModel = {
+  title: 'Part 6 Full Interrupt Mode & NVMe Mapping',
+  description: 'sustained overload에서 interrupt mode로 전환할 때 submission-side REQ_POLLED 제어와 NVMe poll/IRQ queue mapping을 검증하는 단계입니다.',
+  metricTable: {
+    title: 'Part 6 검증 체크리스트',
+    columns: ['확인 항목', '실패 신호'],
+    rows: [
+      { label: 'future REQ_POLLED', cells: ['interrupt mode에서 새 I/O에 flag 미설정', 'dmesg/trace에 REQ_POLLED 잔존'], tone: 'rose' },
+      { label: 'queue mapping', cells: ['DEFAULT hctx로 submit', '여전히 POLL hctx 사용'], tone: 'amber' },
+      { label: 'completion path', cells: ['IRQ handler가 CQ 처리', 'poll skip만 하고 IRQ 0'], tone: 'violet' },
+      { label: 'NVMe queues', cells: ['poll SQ vs admin/IRQ queue 분리 확인', '완료 유실 또는 hang'], tone: 'teal' },
+    ],
+  },
+  notes: [
+    'interrupt risk 카드의 "submission-side proof"를 Part 6에서 실제 counter/trace로 닫는 단계입니다.',
+    'FIO latency 변화만으로 interrupt mode 성공을 판단하면 안 됩니다.',
+    'drivers/nvme/host/pci.c의 poll queue flag(NVMEQ_POLLED)와 hctx type을 같이 봐야 합니다.',
+  ],
+};
+
+type CardDraft = Omit<GraphCard, 'details' | 'sections' | 'sources' | 'sourcePath'> & {
+  sourcePath?: string;
+  sourceKeys?: Array<keyof typeof evidenceSources>;
+  plain: string;
+  why: string;
+  context: string;
+  confusions?: string[];
+  next?: string[];
+};
+
+const expandedSections: Partial<Record<string, CardSections>> = {
+  'repo-overview': sections(
+    '이 카드는 Dpas-migration Notion index를 학습 지도 형태로 다시 배열한 출발점입니다. Notion의 Part 1-9는 작업 일정이고, 이 tree는 그 일정을 이해 순서로 바꿉니다. 먼저 build/boot 루프와 kernel 기본 객체를 잡고, 그 다음 Part 3 Step 1의 polled I/O path를 따라가며 PAS/DPAS hook 후보로 넘어갑니다.',
+    'DPAS migration은 논문 알고리즘을 바로 붙이는 작업이 아닙니다. build loop, paper model, 최신 kernel polling path, 최소 PAS, full mode switching, interrupt mode, FIO 검증이 서로 의존하므로 어느 단계에서 어떤 판단을 해야 하는지 분리해야 실수를 줄일 수 있습니다.',
+    'Notion Dpas-migration index는 Part 1 Kernel Build Boot Loop부터 Part 9 Final Report까지의 큰 roadmap입니다. 이 local learning tree는 그중 Part 3 Step 1의 submit/poll path를 중심축으로 삼고, Part 1의 안전한 kernel 작업 루프와 Part 4 이후 포팅 계획을 연결합니다.',
+    [
+      'Dpas-migration index는 세부 코드 설명서가 아니라 전체 작업 목차입니다. 세부 근거는 각 Part와 Step child page에서 확인해야 합니다.',
+      'Part 1의 Step 1은 build/boot 루프 준비이고, Part 3의 Step 1은 polled I/O path 코드 리딩입니다. 이름은 비슷하지만 목적이 다릅니다.',
+      'Part 번호를 그대로 외우는 것보다 bio, request, hctx, REQ_POLLED, bi_cookie 관계를 먼저 이해하는 편이 이후 포팅 판단에 더 도움이 됩니다.',
+    ],
+    ['Part 1 build loop 카드를 보고 작업 환경과 복구 루프의 의미를 확인합니다.', '그 다음 Step 1 polled I/O path 카드에서 submit path와 poll path가 bi_cookie로 연결되는 흐름을 따라갑니다.'],
+  ),
+  'part1-build-boot-loop': sections(
+    'Part 1은 DPAS 기능을 구현하는 단계가 아니라 kernel을 안전하게 만질 수 있는지 확인하는 단계입니다. 목표는 kernel source를 수정하고, 빌드하고, boot 또는 compile check로 확인하고, 로그를 남기고, 문제가 생기면 이전 상태로 복구하는 루프를 닫는 것입니다.',
+    'DPAS는 block layer hot path를 건드리므로 작은 실수도 부팅 실패나 성능 왜곡으로 이어질 수 있습니다. smoke log처럼 되돌리기 쉬운 변경으로 빌드 루프를 먼저 검증해야 이후 PAS hook이나 mode switching 변경을 안전하게 실험할 수 있습니다.',
+    'Notion Part 1은 WSL에서는 코드 분석, patch 정리, compile check를 하고 실제 NVMe polling/interrupt 성능 검증은 bare-metal Linux에서 하라고 구분합니다. 산출물은 build log, smoke patch, .config, dmesg 또는 부팅 확인 로그, 복구 계획입니다.',
+    [
+      'WSL custom kernel boot는 개발 루프 연습용이지 DPAS 성능 검증 환경이 아닙니다.',
+      '1단계에서 성능을 보려고 하면 범위가 섞입니다. 이 단계의 성공 문장은 "나는 kernel을 수정하고 빌드해서 확인할 수 있다"입니다.',
+      'hot path smoke log는 반복 출력하면 안 됩니다. pr_info_once() 또는 ratelimited log처럼 영향이 작은 형태여야 합니다.',
+    ],
+    ['vanilla kernel build가 먼저 성공하는지 확인합니다.', 'block/blk-mq.c smoke patch와 build log를 남긴 뒤 Part 3 코드 리딩으로 넘어갑니다.'],
+  ),
+  'kernel-io-completion-model': sections(
+    'Linux block I/O completion은 크게 interrupt completion과 polled completion으로 나눠 볼 수 있습니다. Interrupt 방식은 device가 완료 interrupt를 보내고 handler가 CQ를 처리합니다. Polled 방식은 CPU가 bio_poll()에서 시작해 blk-mq와 NVMe driver까지 내려가 completion queue를 직접 확인합니다.',
+    'DPAS는 "polling은 빠르지만 CPU를 태운다"는 문제를 줄이려는 연구입니다. 따라서 interrupt와 poll이 어디서 갈라지고, polled I/O가 어떤 queue와 callback을 타는지 모르면 PAS sleep-before-poll hook 위치를 판단할 수 없습니다.',
+    'Part 3 Step 1은 이 completion model을 최신 Linux 코드에서 확인합니다. Step 1 결론은 submit 때 REQ_POLLED와 bi_cookie가 준비되고, poll 때 bio_poll() -> blk_mq_poll() -> blk_hctx_poll() -> nvme_poll()로 내려간다는 것입니다.',
+    [
+      'poll completion은 request를 submit하는 순간 완료되는 것이 아니라 나중에 CPU가 직접 확인하는 완료 경로입니다.',
+      'interrupt mode는 단순히 poll 함수를 호출하지 않는 것만으로 충분하지 않을 수 있습니다. submit 시 REQ_POLLED와 queue mapping이 이미 결정되기 때문입니다.',
+      'completion model은 성능 정책이 아니라 경로 구조입니다. DPAS 정책은 이 구조 위에 올라갑니다.',
+    ],
+    ['REQ_POLLED 카드에서 polled I/O 표시가 어디에 붙는지 확인합니다.', 'poll path와 interrupt completion path 카드에서 두 completion 경로를 대조합니다.'],
+  ),
+  'concept-blk-mq': sections(
+    'blk-mq는 Linux block layer에서 bio를 request로 바꾸고 여러 hardware queue로 분산해 driver에 넘기는 엔진입니다. CPU 쪽 software context인 ctx와 device queue 쪽 hardware context인 hctx를 연결하고, NVMe 같은 driver callback은 mq_ops를 통해 호출합니다.',
+    'DPAS hook은 결국 blk-mq의 submit 또는 poll 경로 어딘가에 들어가야 합니다. blk-mq가 bio, request, hctx, tag, mq_ops를 어떻게 연결하는지 알아야 sleep-before-poll을 어느 계층에 넣을지 비교할 수 있습니다.',
+    'Part 3 Step 1에서는 blk_mq_submit_bio(), blk_mq_start_request(), blk_mq_poll(), blk_hctx_poll()을 중심으로 읽습니다. Part 4 이후에는 이 지식이 PAS-only hook 후보와 DPAS state placement 판단의 기준이 됩니다.',
+    [
+      'blk-mq는 NVMe driver 자체가 아니라 block layer 공통 구조입니다.',
+      'ctx는 CPU 쪽 software context이고 hctx는 hardware queue context입니다. 둘을 같은 것으로 보면 queue mapping을 잘못 이해합니다.',
+      'tag는 hctx 안의 request slot 번호이고 bi_cookie는 poll 대상 hctx 번호입니다.',
+    ],
+    ['bio와 request 카드에서 입력 단위와 제출 단위를 분리합니다.', 'hctx 카드에서 cookie가 왜 queue index인지 확인합니다.'],
+  ),
+  'concept-bio': sections(
+    'bio는 block layer로 들어오는 I/O 요청의 기본 표현입니다. 사용자의 read/write 또는 io_uring 요청은 kernel 내부에서 bio로 표현되고, polled I/O라면 bio->bi_opf에 REQ_POLLED가 붙고 bio->bi_cookie가 poll 경로의 연결 고리가 됩니다.',
+    'Step 1의 핵심 질문은 bio가 어떻게 request로 바뀌고, 나중에 bio_poll()이 어떤 정보로 poll 대상 queue를 찾는가입니다. bio를 단순한 데이터 덩어리로 보면 REQ_POLLED와 bi_cookie의 역할을 놓칩니다.',
+    'Part 3 Step 1에서는 block/fops.c에서 IOCB_HIPRI가 bio->bi_opf |= REQ_POLLED로 이어지는 흐름과, block/blk-core.c의 bio_poll()이 bio->bi_cookie를 읽는 흐름을 같이 봅니다.',
+    [
+      'bio는 driver에 직접 제출되는 최종 단위가 아닙니다. blk-mq가 request로 바꿔 driver에 넘깁니다.',
+      'bi_cookie는 request tag가 아닙니다. poll해야 할 hctx index입니다.',
+      'REQ_POLLED가 없거나 bi_cookie가 BLK_QC_T_NONE이면 bio_poll()은 대체로 poll할 대상을 찾지 못합니다.',
+    ],
+    ['request 카드로 넘어가 bio가 어떤 제출 단위로 변환되는지 봅니다.', 'bio_poll() 카드에서 bi_cookie가 실제로 어떻게 소비되는지 확인합니다.'],
+  ),
+  'concept-request': sections(
+    'request는 blk-mq가 device driver에 제출하는 I/O 단위입니다. bio보다 driver submit에 가깝고, request에는 선택된 hctx, hctx 안에서의 tag, bio에서 전달된 cmd_flags 같은 정보가 연결됩니다.',
+    'DPAS 구현 후보를 볼 때 request를 이해해야 하는 이유는 submit 시점의 queue 선택과 poll 시점의 completion 확인이 request/hctx 관계를 통해 이어지기 때문입니다. 특히 blk_mq_start_request()에서 polled bio의 bi_cookie가 rq->mq_hctx->queue_num으로 저장됩니다.',
+    'Part 3 Step 1에서는 request가 어느 hctx로 가는지, tag가 무엇인지, 그리고 tag가 bi_cookie와 다르다는 점을 강조합니다. 이후 DPAS state를 request 단위로 둘지 queue/per-CPU 단위로 둘지 판단할 때도 이 구분이 필요합니다.',
+    [
+      'request tag는 "이 request가 hctx 안 몇 번째 slot인가"를 의미합니다.',
+      'bio_poll()은 tag로 request를 직접 찾는 함수가 아닙니다.',
+      'request가 실제 issue되기 전에는 bio->bi_cookie가 아직 poll 가능한 값으로 준비되지 않았을 수 있습니다.',
+    ],
+    ['hctx 카드에서 request가 어느 hardware queue context에 묶이는지 확인합니다.', 'bi_cookie != tag 카드에서 두 번호 체계를 분리합니다.'],
+  ),
+  'concept-hctx': sections(
+    'hctx는 blk-mq의 hardware context입니다. 쉽게 말하면 block layer가 device의 hardware queue를 대표하기 위해 들고 있는 per-queue 구조이며, polled I/O에서는 hctx->queue_num이 bio->bi_cookie로 저장됩니다.',
+    'Step 1에서 hctx를 모르면 bi_cookie가 왜 tag가 아닌지 이해할 수 없습니다. bio_poll()은 request slot을 찾는 것이 아니라 cookie로 q->queue_hw_ctx[cookie]를 찾아 어느 hctx를 poll할지 결정합니다.',
+    'Part 3 Step 1의 submit path에서는 REQ_POLLED가 HCTX_TYPE_POLL queue 선택으로 이어지고, poll path에서는 blk_mq_poll()이 cookie를 hctx index로 사용합니다. Part 6 interrupt mode에서는 이 hctx/queue mapping이 더 중요해집니다.',
+    [
+      'hctx는 CPU 자체가 아닙니다. CPU별 ctx 여러 개가 하나의 hctx로 묶일 수 있습니다.',
+      'hctx->queue_num은 poll 대상 queue 번호이고 request tag는 그 hctx 안의 request slot 번호입니다.',
+      'HCTX_TYPE_POLL은 "poll 전용 hardware context 타입"이지 PAS mode 자체가 아닙니다.',
+    ],
+    ['REQ_POLLED 카드에서 poll hctx 선택 조건을 확인합니다.', 'blk_mq_poll() 카드에서 q->queue_hw_ctx[cookie]가 어떻게 쓰이는지 봅니다.'],
+  ),
+  'concept-req-polled': sections(
+    'REQ_POLLED는 이 I/O가 polled completion 경로를 사용할 수 있음을 표시하는 request/bio flag입니다. 사용자 요청의 RWF_HIPRI, IOCB_HIPRI, io_uring IOPOLL 같은 의도가 block layer에서 bio->bi_opf |= REQ_POLLED 형태로 나타납니다.',
+    'REQ_POLLED는 단순한 주석이 아니라 queue 선택에 영향을 줍니다. 이 flag가 있으면 blk-mq는 HCTX_TYPE_POLL을 선택할 수 있고, request가 실제 issue될 때 poll 대상 hctx 번호가 bi_cookie로 저장됩니다.',
+    'Part 3 Step 1은 REQ_POLLED가 붙은 뒤 submit path와 poll path가 어떻게 이어지는지 설명합니다. Part 6에서는 true interrupt mode를 하려면 completion path뿐 아니라 이 flag가 붙는 submission path까지 봐야 한다는 리스크로 이어집니다.',
+    [
+      'REQ_POLLED가 있다고 해서 이미 completion이 된 것은 아닙니다. poll 가능한 경로로 제출됐다는 표시입니다.',
+      'completion path에서 poll만 건너뛰어도 이미 request는 poll queue로 들어갔을 수 있습니다.',
+      'REQ_POLLED와 REQ_HIPRI 계열 이름은 가까워 보이지만 코드에서 실제 변환 지점을 확인해야 합니다.',
+    ],
+    ['submit path 카드에서 REQ_POLLED가 HCTX_TYPE_POLL과 bi_cookie로 이어지는 흐름을 봅니다.', 'interrupt risk 카드에서 왜 submission-side proof가 필요한지 확인합니다.'],
+  ),
+  'concept-bi-cookie-tag': sections(
+    'bi_cookie는 tag가 아니라 poll 대상 hardware queue 번호입니다. 최신 Step 1 기준 핵심 식은 bio->bi_cookie = rq->mq_hctx->queue_num이고, request->tag는 그 hctx 안에서 request가 차지한 slot 번호입니다.',
+    '이 구분을 틀리면 bio_poll()과 blk_mq_poll()의 역할을 완전히 잘못 읽게 됩니다. bio_poll()은 tag로 request를 직접 찾는 함수가 아니라 cookie로 어느 hctx를 poll할지 찾는 함수입니다.',
+    'Part 3 Step 1에서 가장 먼저 정정한 오해가 이 카드입니다. submit path의 blk_mq_start_request()가 cookie를 저장하고, poll path의 blk_mq_poll()이 q->queue_hw_ctx[cookie]로 hctx를 찾습니다.',
+    [
+      'bi_cookie = tag라고 읽으면 안 됩니다.',
+      'BLK_QC_T_NONE은 poll할 대상이 아직 없거나 없다는 의미로 봐야 합니다.',
+      'cookie는 request를 직접 가리키는 포인터가 아니라 queue index로 소비됩니다.',
+    ],
+    ['submit path 카드에서 cookie가 저장되는 시점을 확인합니다.', 'blk_mq_poll() 카드에서 cookie가 hctx lookup에 쓰이는 지점을 확인합니다.'],
+  ),
+  'path-submit-polled': sections(
+    'Submit path는 I/O를 device로 보내는 길입니다. 사용자의 polling 의도는 IOCB_HIPRI 같은 flag로 들어오고, kernel은 bio->bi_opf에 REQ_POLLED를 붙인 뒤 blk-mq에서 HCTX_TYPE_POLL hctx를 선택하고 request를 NVMe submit queue로 보냅니다.',
+    'poll path만 보면 bi_cookie가 어디서 생겼는지 알 수 없습니다. bi_cookie는 완료 확인 시점이 아니라 request가 실제 issue되는 submit 흐름에서 저장되며, 이후 poll path가 올바른 hctx를 찾을 수 있게 해 줍니다.',
+    'Part 3 Step 1의 submit side 핵심 함수는 block/fops.c의 REQ_POLLED 설정부, block/blk-mq.h의 HCTX_TYPE_POLL 선택, block/blk-mq.c의 blk_mq_submit_bio()와 blk_mq_start_request()입니다.',
+    [
+      'submit path는 completion을 확인하는 경로가 아닙니다. device에 I/O를 내보내고 나중에 poll할 단서를 남기는 경로입니다.',
+      'bi_cookie는 bio 생성 직후 항상 준비되는 값이 아니라 request start 시점에 저장됩니다.',
+      'REQ_POLLED가 붙으면 queue mapping도 달라질 수 있으므로 interrupt mode 설계에서 submit path를 무시하면 안 됩니다.',
+    ],
+    ['poll path 카드로 넘어가 bi_cookie가 어떻게 소비되는지 봅니다.', 'REQ_POLLED 카드와 hctx 카드를 같이 보며 flag와 queue 선택을 연결합니다.'],
+  ),
+  'path-poll-completion': sections(
+    'Poll completion path는 이미 submit된 I/O가 끝났는지 CPU가 직접 확인하는 길입니다. bio_poll()이 bio->bi_cookie를 읽고, blk_mq_poll()이 그 cookie로 hctx를 찾고, blk_hctx_poll()이 driver poll callback을 반복 호출하며, NVMe에서는 nvme_poll()이 CQ를 직접 확인합니다.',
+    'DPAS의 PAS 아이디어는 이 경로 앞 또는 안쪽에 sleep-before-poll을 넣어 CPU busy polling 비용을 줄이는 것입니다. 따라서 poll path의 각 함수가 어떤 책임을 갖는지 알아야 hook 위치를 고를 수 있습니다.',
+    'Step 1 결론은 최신 Linux 기본 poll loop에 PAS가 원하는 sleep이 없다는 것입니다. cpu_relax()는 sleep이 아니므로, Part 4에서는 bio_poll() 또는 blk_mq_poll() 근처에 별도 hook을 설계해야 합니다.',
+    [
+      'poll path는 submit path와 반대 방향의 "완료 확인" 경로입니다. 두 경로를 한 함수 안에서 모두 처리한다고 생각하면 혼동됩니다.',
+      'bio_poll()은 NVMe CQ를 직접 보지 않습니다. blk-mq로 내려가는 entry입니다.',
+      'nvme_poll()까지 내려가야 실제 completion queue entry를 확인합니다.',
+    ],
+    ['bio_poll(), blk_mq_poll(), blk_hctx_poll(), nvme_poll() 카드를 순서대로 확인합니다.', 'PAS hook 카드에서 어느 위치가 초기 포팅에 적합한지 비교합니다.'],
+  ),
+  'function-bio-poll': sections(
+    'bio_poll()은 block layer의 polled completion entry입니다. bio->bi_cookie를 읽고, BLK_QC_T_NONE이면 poll 대상이 없으므로 0을 반환하며, queue가 유효하면 blk_mq_poll(q, cookie, ...)로 내려갑니다.',
+    '이 함수는 user-facing poll 경로와 가까워 PAS hook 후보로 직관적입니다. 하지만 request/tag/hctx 내부 정보 접근은 제한적이어서 상태 관리가 필요한 DPAS 구현에는 blk_mq_poll()보다 불리할 수 있습니다.',
+    'Step 1에서는 bio_poll()을 "bio에서 cookie를 꺼내 blk-mq poll로 넘기는 입구"로 정리합니다. DPAS 관점 메모는 hook 후보이지만 request/tag 직접 접근이 제한적이라는 점입니다.',
+    [
+      'bio_poll()은 completion queue를 직접 스캔하는 함수가 아닙니다.',
+      'return 0은 보통 completion을 찾지 못했거나 poll할 수 없다는 뜻으로 읽어야 합니다.',
+      'bio_poll() 위치가 직관적이라고 해서 항상 구현상 최선이라는 뜻은 아닙니다.',
+    ],
+    ['blk_mq_poll() 카드에서 cookie가 hctx로 바뀌는 지점을 확인합니다.', 'PAS hook 카드에서 bio_poll() 후보의 장단점을 비교합니다.'],
+  ),
+  'function-blk-mq-poll': sections(
+    'blk_mq_poll()은 bio_poll()이 넘긴 cookie를 실제 hctx로 바꾸는 함수입니다. 핵심은 q->queue_hw_ctx[cookie]로 poll 대상 hardware context를 찾고, 그 hctx를 blk_hctx_poll()에 넘기는 것입니다.',
+    '현재 Step 1 기준으로 PAS-only 초기 이식의 가장 유력한 후보입니다. block layer 공통 경로이고 hctx에 바로 접근할 수 있으며 NVMe에 종속되지 않기 때문입니다. 다만 hot path라 overhead와 locking/context 조건을 매우 조심해야 합니다.',
+    'Part 3 Step 1과 hook 후보 평가에서 blk_mq_poll()은 "hctx 접근 가능, driver-independent, PAS hook 강력 후보"로 정리됩니다. Part 4에서는 이 판단을 로컬 최신 kernel 코드로 다시 확인해야 합니다.',
+    [
+      'blk_mq_poll()은 request tag로 request를 찾는 함수가 아닙니다.',
+      '여기에 sleep 판단을 넣는다면 fast path overhead가 작아야 하고, poll flags와 reschedule 조건을 깨면 안 됩니다.',
+      'hctx를 안다는 것과 DPAS state placement가 끝났다는 것은 다릅니다. state는 request_queue/per-CPU 구조로 별도 설계해야 합니다.',
+    ],
+    ['blk_hctx_poll() 카드에서 이 함수가 넘긴 hctx가 어떻게 driver callback으로 이어지는지 봅니다.', 'Part 4 Minimal PAS 카드에서 이 후보가 실제 구현 범위로 어떻게 줄어드는지 확인합니다.'],
+  ),
+  'function-blk-hctx-poll': sections(
+    'blk_hctx_poll()은 hctx에 대해 driver의 mq_ops->poll() callback을 반복 호출하는 block layer polling loop입니다. ret > 0이면 완료를 찾은 것이고, oneshot이나 reschedule 조건에 따라 빠져나오며, 반복 중에는 cpu_relax()를 호출합니다.',
+    '이 함수는 실제 polling loop에 가깝지만, 바로 여기에 PAS sleep을 넣는 것은 조심해야 합니다. 함수 책임이 driver callback 반복 호출에 가까워서 정책성 sleep과 mode state를 넣으면 계층 책임이 흐려질 수 있습니다.',
+    'Step 1의 중요한 결론은 blk_hctx_poll() loop에 sleep/schedule이 없고 cpu_relax()만 있다는 점입니다. 이것이 "최신 Linux 기본 poll path에는 PAS sleep-before-poll이 없다"는 판단의 근거입니다.',
+    [
+      'cpu_relax()는 PAS sleep이 아닙니다. CPU busy-wait loop에서 쓰는 hint에 가깝습니다.',
+      'driver callback 직전이라는 이유만으로 hook 위치가 좋다고 단정하면 안 됩니다.',
+      'blk_hctx_poll()은 NVMe 전용 함수가 아니라 mq_ops->poll을 호출하는 block layer 함수입니다.',
+    ],
+    ['cpu_relax 오해 카드를 보고 sleep과 busy-wait hint를 분리합니다.', 'nvme_poll() 카드에서 mq_ops->poll이 실제 driver 구현으로 내려가는 과정을 봅니다.'],
+  ),
+  'function-nvme-poll': sections(
+    'nvme_poll()은 NVMe driver의 poll callback입니다. blk_hctx_poll()에서 q->mq_ops->poll(hctx, iob)가 호출되면 NVMe queue가 poll queue인지 확인하고, CQ에 pending completion이 있는지 본 뒤 nvme_poll_cq()로 completion entry를 처리합니다.',
+    'NVMe CQ와 가장 가까워서 실제 completion이 어디서 소비되는지 이해하기 좋습니다. 하지만 NVMe 전용 위치라서 block layer 일반성을 유지하려는 PAS/DPAS migration의 1차 hook으로는 blk_mq_poll()보다 우선순위가 낮습니다.',
+    'Part 3 Step 1에서는 nvme_poll()을 poll path의 끝단으로 봅니다. 이후 NVMe queue mapping이나 interrupt mode를 다룰 때는 drivers/nvme/host/pci.c의 poll queue 조건과 CQ 처리 흐름을 다시 확인해야 합니다.',
+    [
+      'nvme_poll()은 polled I/O 전체의 시작점이 아니라 driver callback 끝단입니다.',
+      '여기에 hook을 넣으면 NVMe 실험은 빠를 수 있지만 다른 block device로 일반화하기 어렵습니다.',
+      'NVMe CQ 확인과 DPAS sleep 정책은 같은 문제가 아닙니다. 정책 위치와 device completion 위치를 분리해야 합니다.',
+    ],
+    ['blk_hctx_poll() 카드로 돌아가 driver callback 호출 위치를 확인합니다.', 'interrupt risk 카드에서 NVMe queue mapping과 REQ_POLLED 제어가 왜 별도 문제인지 봅니다.'],
+  ),
+  'concept-pas-sleep-before-poll': sections(
+    'PAS sleep-before-poll은 busy polling을 바로 시작하지 않고 짧게 기다린 뒤 poll하는 아이디어입니다. I/O가 아직 완료되지 않았을 가능성이 높을 때 CPU를 태우며 계속 CQ를 보는 대신, 적절한 시간 동안 쉬고 다시 확인해 CPU 비용을 줄이려는 접근입니다.',
+    'DPAS migration의 최소 구현 단위는 full state machine이 아니라 이 PAS hook을 최신 kernel poll path에 안전하게 넣는 것입니다. Step 1이 중요한 이유도 기본 poll loop에 sleep이 없고, bio_poll()/blk_mq_poll()/blk_hctx_poll()/nvme_poll() 중 어디가 책임상 맞는지 따져야 하기 때문입니다.',
+    'Part 3 Step 1은 blk_mq_poll()을 1차 후보로 강하게 시사합니다. Part 4 Minimal PAS-only port는 이 후보를 실제 코드와 검증 계획으로 좁히는 단계입니다.',
+    [
+      'PAS는 cpu_relax()와 다릅니다. cpu_relax()는 sleep이 아니라 busy loop hint입니다.',
+      'sleep을 너무 낮은 driver 위치에 넣으면 NVMe 전용이 되거나 block layer 책임이 흐려질 수 있습니다.',
+      'sleep-before-poll은 성능 정책이므로 기능 동작뿐 아니라 latency, CPU 사용량, IOPS를 같이 봐야 합니다.',
+    ],
+    ['blk_mq_poll() 후보의 장단점을 다시 확인합니다.', 'Part 4 카드에서 PAS-only 범위를 full DPAS와 분리합니다.'],
+  ),
+  'concept-dpas-mode': sections(
+    'DPAS mode switching은 하나의 고정 polling 정책이 아니라 부하 상태에 따라 CP, PAS normal, PAS overloaded, interrupt 계열 모드를 바꾸는 구조입니다. 논문 Figure 10의 state machine을 kernel의 per-CPU/per-queue state와 transition counter로 번역해야 합니다.',
+    'Minimal PAS가 동작한다고 full DPAS가 끝나는 것은 아닙니다. full DPAS에는 mode counter, transition reason, UNDER/OVER update, timer failure 처리, interrupt mode의 submission-side 제어까지 필요합니다.',
+    'Dpas-migration index에서는 Part 4가 Minimal PAS, Part 5가 mode switching, Part 6이 full interrupt mode와 NVMe queue mapping입니다. 이 카드는 Part 4 이후 범위가 왜 별도 단계로 나뉘는지 설명합니다.',
+    [
+      'DPAS는 단순히 sleep 값을 하나 정하는 알고리즘이 아닙니다.',
+      'PAS-only와 full DPAS mode switching을 한 번에 구현하려 하면 hook 위치, state 위치, 검증 포인트가 섞입니다.',
+      'interrupt mode는 completion path만 끊는 것으로 충분하지 않을 가능성이 큽니다.',
+    ],
+    ['paper DPAS state machine 카드에서 논문 모델을 먼저 확인합니다.', 'interrupt risk 카드에서 full interrupt mode가 왜 별도 검증 대상인지 봅니다.'],
+  ),
+  'risk-interrupt-submission': sections(
+    'true interrupt mode는 completion path에서 poll을 건너뛰는 것만으로 충분하지 않을 수 있습니다. 이미 submit path에서 REQ_POLLED가 붙고 HCTX_TYPE_POLL queue로 들어간 I/O라면, 나중에 poll을 하지 않는다고 해서 일반 interrupt queue I/O가 된 것은 아니기 때문입니다.',
+    'DPAS full mode switching에서 가장 큰 설계 리스크입니다. interrupt mode를 주장하려면 future I/O에서 REQ_POLLED를 제거하거나 queue mapping을 바꾸는 submission-side 근거가 필요할 수 있습니다.',
+    'Part 3 Step 1은 이 리스크의 전제를 제공합니다. REQ_POLLED가 submit 시점에 queue 선택으로 이어지고, Part 6은 이 구조를 바탕으로 Full Interrupt Mode & NVMe Queue Mapping을 검증하는 단계입니다.',
+    [
+      'poll completion을 호출하지 않는 것과 interrupt queue에 제출하는 것은 다릅니다.',
+      '이미 poll hctx로 들어간 request를 completion 단계에서만 바꾸기는 어렵습니다.',
+      'FIO 결과에서 latency가 바뀌어도 queue mapping이 맞다는 증거는 아닙니다. counter와 submit-side trace가 필요합니다.',
+    ],
+    ['REQ_POLLED 카드와 submit path 카드를 다시 확인합니다.', 'Part 6 근거를 추가할 때 submission-side counter와 queue mapping 표를 카드화합니다.'],
+  ),
+  'part4-minimal-pas': sections(
+    'Part 4는 full DPAS를 바로 옮기는 것이 아니라 PAS sleep-before-poll만 최신 kernel에 최소 형태로 올리는 단계입니다. 목표는 hook 위치, state placement, sysfs knob, sleep 결과 기록을 작게 닫고 성능 영향은 FIO로 확인할 준비를 하는 것입니다.',
+    '작은 PAS-only 단계가 필요한 이유는 DPAS 전체를 한 번에 옮기면 실패 원인을 분리할 수 없기 때문입니다. sleep hook이 잘못된 것인지, mode switching이 잘못된 것인지, interrupt queue mapping이 잘못된 것인지 나중에 구분하기 어려워집니다.',
+    'Part 3 Step 1은 blk_mq_poll()을 우선 hook 후보로 읽게 만들고, Part 4는 그 후보를 실제 patch 단위로 줄입니다. Part 5/6의 mode switching과 interrupt mode는 이 단계 밖으로 명확히 미룹니다.',
+    [
+      'Minimal PAS는 DPAS mode switching까지 포함하지 않습니다.',
+      '처음부터 NVMe-only hook을 넣으면 빠르게 실험할 수 있지만 block layer 일반성은 잃을 수 있습니다.',
+      'sleep duration과 UNDER/OVER update는 기능 검증과 성능 검증을 모두 요구합니다.',
+    ],
+    ['blk_mq_poll() 카드에서 1차 hook 후보 근거를 확인합니다.', 'Part 7 validation 카드에서 PAS-only가 어떤 지표로 검증돼야 하는지 봅니다.'],
+  ),
+  'part7-validation': sections(
+    'Part 7은 구현이 "돌아간다"를 넘어서 DPAS/PAS 정책이 실제로 의도한 효과를 내는지 FIO microbenchmark로 확인하는 단계입니다. latency percentile, CPU 사용량, IOPS, mode breakdown counter, transition counter를 같이 봐야 합니다.',
+    'DPAS는 성능 정책이므로 기능 compile만으로는 성공을 말할 수 없습니다. sleep-before-poll은 CPU를 줄일 수 있지만 latency tail을 악화시킬 수 있고, mode switching은 counter가 없으면 어떤 mode가 실제로 쓰였는지 알 수 없습니다.',
+    'Dpas-migration index에서 Part 7은 Part 4/5/6 구현 뒤의 검증 계획입니다. Step 1에서 잡은 poll path 이해가 있어야 FIO 결과를 함수 경로와 counter로 해석할 수 있습니다.',
+    [
+      '평균 latency만 보면 tail latency 악화를 놓칠 수 있습니다.',
+      'IOPS가 유지돼도 CPU 사용량이 줄었는지 별도 확인해야 합니다.',
+      'mode counter가 없으면 DPAS가 어느 mode로 동작했는지 추측만 하게 됩니다.',
+    ],
+    ['PAS hook이 들어간 뒤 FIO로 latency, CPU, IOPS를 함께 봅니다.', 'Part 8/9 카드가 추가되면 regression과 final report 근거를 연결합니다.'],
+  ),
+  'mis-submit-vs-poll': sections(
+    'submit path와 poll path는 서로 다른 시간의 경로입니다. submit path는 I/O를 device에 보내며 REQ_POLLED, HCTX_TYPE_POLL, bi_cookie 같은 단서를 남기는 쪽이고, poll path는 나중에 CPU가 completion queue를 직접 확인하는 쪽입니다.',
+    '두 경로를 섞으면 bi_cookie가 어디서 생기는지, bio_poll()이 무엇을 찾는지, PAS hook이 어디에 들어가야 하는지 모두 헷갈립니다. Step 1은 이 둘을 분리해서 읽는 것이 거의 전부라고 봐도 됩니다.',
+    'Part 3 Step 1은 submit 쪽을 IOCB_HIPRI -> REQ_POLLED -> HCTX_TYPE_POLL -> blk_mq_start_request()로, poll 쪽을 bio_poll() -> blk_mq_poll() -> blk_hctx_poll() -> nvme_poll()로 정리합니다.',
+    [
+      'submit path는 completion을 확인하지 않습니다.',
+      'poll path는 bi_cookie를 만드는 곳이 아니라 사용하는 곳입니다.',
+      'interrupt mode 리스크도 이 구분에서 나옵니다. queue 선택은 submit에서 이미 결정될 수 있습니다.',
+    ],
+    ['submit path와 poll path 카드를 나란히 열어 흐름을 비교합니다.', 'bi_cookie != tag 카드에서 두 경로를 이어 주는 값이 무엇인지 확인합니다.'],
+  ),
+  'mis-cpu-relax-sleep': sections(
+    'cpu_relax()는 PAS sleep이 아닙니다. blk_hctx_poll()의 busy loop 안에서 CPU에게 spin-wait 중이라는 hint를 주는 역할에 가깝고, scheduler에 양보하며 일정 시간 잠드는 sleep-before-poll과는 의미가 다릅니다.',
+    '이 오해를 풀어야 DPAS의 기여가 보입니다. 최신 Linux 기본 polling loop에 이미 PAS가 있는 것이 아니라, 기본 loop는 driver poll callback을 반복 호출하고 completion이 없으면 cpu_relax()를 거쳐 계속 돌 수 있습니다.',
+    'Part 3 Step 1의 blk_hctx_poll() 해석에서 "기본 loop에는 sleep/schedule이 없다"는 결론이 나옵니다. 따라서 Part 4에서 별도 PAS hook 설계가 필요합니다.',
+    [
+      'cpu_relax()가 있으니 PAS가 이미 구현돼 있다고 말하면 안 됩니다.',
+      'sleep-before-poll은 latency와 CPU tradeoff를 만드는 정책이고 cpu_relax()는 busy-wait loop hint입니다.',
+      'cpu_relax 위치에 무조건 sleep을 넣는 것도 안전한 결론이 아닙니다. 함수 책임과 context를 봐야 합니다.',
+    ],
+    ['blk_hctx_poll() 카드에서 loop 구조를 다시 확인합니다.', 'PAS hook 카드에서 sleep을 넣을 후보 위치를 비교합니다.'],
+  ),
+  'paper-pas-core': sections(
+    '논문 PAS의 핵심은 completion이 곧 오지 않을 때 CPU를 계속 태우며 poll하지 말고, 짧은 sleep 후 poll해서 CPU 비용을 줄이는 것입니다. kernel 코드로 번역하면 "poll을 시도하기 직전에 어디서, 얼마나, 어떤 상태를 보고 sleep할 것인가"라는 hook 문제로 바뀝니다.',
+    '논문 figure만 보면 아이디어는 이해되지만, 최신 Linux에는 그대로 대응되는 함수가 없습니다. 그래서 Part 3 Step 1처럼 bio_poll(), blk_mq_poll(), blk_hctx_poll(), nvme_poll()의 책임을 먼저 나눠야 합니다.',
+    'Part 2는 PAS/DPAS 논문 모델을 이해하는 단계이고, Part 3은 그 모델을 최신 kernel 함수와 hook 후보로 번역하는 단계입니다. 이 카드는 Part 2와 Part 4 사이의 bridge입니다.',
+    [
+      '논문 용어를 kernel 함수 이름으로 1:1 검색하면 안 됩니다.',
+      'PAS는 "poll을 하지 말자"가 아니라 "바로 busy polling하지 말고 적절히 기다리자"에 가깝습니다.',
+      'sleep 위치는 성능뿐 아니라 kernel context, locking, queue state 접근성도 함께 봐야 합니다.',
+    ],
+    ['Step 1 poll path 카드를 보고 논문 PAS가 들어갈 후보를 찾습니다.', 'Part 4 Minimal PAS 카드에서 이 아이디어를 작은 구현 범위로 줄입니다.'],
+  ),
+  'paper-dpas-state-machine': sections(
+    '논문 DPAS state machine은 workload 상태에 따라 polling policy를 바꾸는 모델입니다. CP처럼 계속 poll할지, PAS normal처럼 sleep-before-poll을 적용할지, overloaded나 interrupt 계열로 물러날지를 상태와 transition rule로 결정합니다.',
+    '이 모델을 kernel에 옮기려면 단순 sleep hook보다 더 많은 것이 필요합니다. per-CPU/per-queue state, UNDER/OVER 판정, mode counter, transition reason, timer failure handling, submission-side interrupt control이 모두 설계 대상입니다.',
+    'Part 5는 Figure 10의 state machine을 최신 kernel mode switching 계획으로 옮기는 단계입니다. Part 6은 그중 interrupt mode가 completion path만으로 충분한지, REQ_POLLED와 queue mapping까지 손봐야 하는지를 별도로 검증합니다.',
+    [
+      'state machine을 구현하지 않아도 PAS-only 실험은 할 수 있습니다. 둘은 단계가 다릅니다.',
+      'mode counter 없이 state machine이 맞게 돌았다고 판단하면 안 됩니다.',
+      'interrupt state는 policy 이름만으로 정의되지 않습니다. 실제 submission queue와 completion 경로가 맞아야 합니다.',
+    ],
+    ['DPAS mode 카드에서 kernel-side state와 counter 요구사항을 확인합니다.', 'interrupt risk 카드에서 full interrupt mode의 범위를 분리합니다.'],
+  ),
+  'concept-ctx': sections(
+    'blk_mq_ctx는 per-CPU software queue context입니다. submit하는 CPU마다 ctx가 있고, bio->bi_opf의 REQ_POLLED/READ 여부에 따라 ctx->hctxs[HCTX_TYPE_*]로 어느 hardware context에 request를 보낼지 결정합니다.',
+    'ctx와 hctx를 구분하지 못하면 queue mapping과 DPAS state placement를 잘못 잡습니다. request에는 mq_ctx(software)와 mq_hctx(hardware)가 모두 붙으며, bi_cookie는 hctx->queue_num에서 옵니다.',
+    '최신 kernel(block/blk-mq.h)에서 blk_mq_map_queue(opf, ctx)는 ctx->hctxs[blk_mq_get_hctx_type(opf)]를 반환합니다. REQ_POLLED면 HCTX_TYPE_POLL, READ면 HCTX_TYPE_READ, 아니면 DEFAULT입니다.',
+    [
+      'ctx는 CPU 번호와 1:1이지만 hctx와 1:1이 아닙니다.',
+      'software queue(ctx)와 hardware queue(hctx)는 blk-mq의 두 축입니다.',
+      'DPAS per-CPU state를 ctx에 둘지 hctx에 둘지는 설계 선택이며 아직 Part 4에서 확정되지 않았습니다.',
+    ],
+    ['hctx 카드에서 hardware side queue_num/cookie 관계를 확인합니다.', 'REQ_POLLED 카드에서 opf가 ctx->hctxs[] 선택에 미치는 영향을 봅니다.'],
+  ),
+  'concept-mq-ops': sections(
+    'blk_mq_ops는 block layer가 driver와 통신하는 callback table입니다. queue_rq로 submit, poll로 polled completion 확인, complete로 interrupt completion 처리를 driver에 위임합니다.',
+    'DPAS hook 위치를 고를 때 mq_ops 경계가 중요합니다. nvme_poll() 안에 hook을 넣으면 NVMe 실험은 빠르지만 block layer 일반성을 잃고, blk_mq_poll()에 두면 mq_ops->poll() 호출 전후에서 모든 poll-capable driver에 적용할 수 있습니다.',
+    '최신 NVMe PCI driver(drivers/nvme/host/pci.c)는 nvme_mq_ops에 .queue_rq = nvme_queue_rq, .poll = nvme_poll을 등록합니다. blk_hctx_poll()은 q->mq_ops->poll(hctx, iob)만 반복 호출합니다.',
+    [
+      'mq_ops는 struct request_queue가 아니라 tag_set에 속합니다.',
+      'poll callback이 NULL이면 polled I/O path가 성립하지 않습니다.',
+      'complete callback은 interrupt path의 마지막 driver-side 단계입니다.',
+    ],
+    ['nvme_poll() 카드에서 mq_ops->poll 구현을 확인합니다.', 'interrupt completion 카드에서 mq_ops->complete 경로를 대조합니다.'],
+  ),
+  'function-blk-mq-start-request': sections(
+    'blk_mq_start_request()는 driver가 request를 실제 issue할 때 block layer에 알리는 함수입니다. timeout, stats, state 전환 외에 polled bio라면 bio->bi_cookie = rq->mq_hctx->queue_num을 WRITE_ONCE로 저장합니다.',
+    'bi_cookie가 어디서 생기는지 묻는 질문의 정답 함수입니다. submit path 전체를 훑기 전에 이 한 줄을 알면 poll path의 cookie lookup 의미가 명확해집니다.',
+    '최신 kernel block/blk-mq.c:1391-1392에서 REQ_POLLED bio만 cookie를 저장합니다. NVMe nvme_queue_rq()가 SQ에 command를 쓰기 전후에 driver가 start_request를 호출하는 흐름과 연결해 봐야 합니다.',
+    [
+      'cookie는 request tag가 아닙니다.',
+      'start_request 이전 bio_poll()은 BLK_QC_T_NONE을 볼 수 있습니다.',
+      'WRITE_ONCE는 poll path와 submit path 간 race를 줄이기 위한 것입니다.',
+    ],
+    ['bi_cookie != tag 카드에서 cookie와 tag를 다시 분리합니다.', 'submit path 카드에서 start_request가 path 중 어디에 있는지 확인합니다.'],
+  ),
+  'path-interrupt-completion': sections(
+    'Interrupt completion path는 device IRQ가 발생하면 driver handler가 CQ를 처리하고 blk_mq_complete_request()를 통해 request를 완료하는 경로입니다. 같은 CPU/cache domain이면 mq_ops->complete()를 바로 호출하고, 아니면 IPI와 BLOCK_SOFTIRQ를 거칩니다.',
+    'kernel-io-completion-model 카드의 interrupt 쪽을 실제 함수 이름으로 채웁니다. polled path(bio_poll)와 대칭으로 알아야 DPAS interrupt mode가 무엇을 바꿔야 하는지 판단할 수 있습니다.',
+    'block/blk-mq.c의 blk_mq_complete_request(), blk_mq_complete_request_remote(), blk_done_softirq()가 핵심입니다. NVMe PCI는 IRQ handler에서 CQ entry를 처리한 뒤 block layer complete path로 올라갑니다.',
+    [
+      'interrupt completion은 poll path와 반대로 CPU가 CQ를 직접 도는 loop가 아닙니다.',
+      'completion path만 끊는다고 interrupt mode가 되지 않을 수 있습니다 (submit-side REQ_POLLED).',
+      'softirq 경로는 latency와 CPU wake 패턴에 영향을 줍니다.',
+    ],
+    ['kernel-io-completion-model 카드에서 두 completion model을 비교합니다.', 'interrupt risk 카드에서 submission-side proof 필요성을 확인합니다.'],
+  ),
+  'path-io-uring-iopoll': sections(
+    'io_uring IOPOLL 경로는 userspace가 IORING_SETUP_IOPOLL로 ring을 만들면 io_uring/rw.c에서 kiocb->ki_flags |= IOCB_HIPRI를 설정하고, block/fops.c에서 bio->bi_opf |= REQ_POLLED로 변환한 뒤, completion 시 file->f_op->iopoll (= iocb_bio_iopoll) -> bio_poll()로 이어집니다.',
+    'Step 1 polled I/O 실험(FIO io_uring + hipri)이 kernel 어디로 들어오는지 보여줍니다. REQ_POLLED의 user-space 출발점을 알아야 Part 6에서 future I/O flag 제어를 설계할 수 있습니다.',
+    '최신 kernel: io_uring/rw.c:876-881(IOPOLL setup), block/fops.c:381-384(HIPRI->REQ_POLLED + iocb->private=bio), block/blk-core.c:988-1017(iocb_bio_iopoll). HYBRID_IOPOLL은 별도 분기입니다.',
+    [
+      'IOCB_HIPRI와 RWF_HIPRI는 같은 bit입니다.',
+      'iopoll은 direct I/O + file->f_op->iopoll 지원이 필요합니다.',
+      'aio read/write와 io_uring IOPOLL은 submit flag 변환은 비슷하지만 poll 진입 mechanism이 다릅니다.',
+    ],
+    ['REQ_POLLED 카드에서 flag 변환 지점을 확인합니다.', 'bio_poll() 카드에서 iocb->private에 저장된 bio가 poll되는 과정을 봅니다.'],
+  ),
+  'part5-mode-switching': sections(
+    'Part 5는 Part 4의 고정 sleep_ns PAS hook 위에 DPAS mode switching을 올리는 단계입니다. CP, PAS normal, PAS overloaded, interrupt transition을 kernel state, UNDER/OVER update, mode counter로 표현합니다.',
+    'Minimal PAS가 동작해도 workload 적응형 DPAS는 별도 작업입니다. sleep 값 하나를 sysfs로 고정하는 것과 latency/queue depth에 따라 바꾸는 것은 구현 난이도와 검증 포인트가 다릅니다.',
+    'Notion Part 5는 Figure 10 state machine 포팅 계획입니다. hook 위치(blk_mq_poll)는 Part 4와 같되, per-hctx/per-CPU state machine과 transition reason logging이 추가됩니다.',
+    [
+      'Part 5는 interrupt queue mapping(Part 6)과 동시에 구현하지 않는 것이 좋습니다.',
+      'mode counter 없이 state machine만 넣으면 FIO 결과 해석이 불가능합니다.',
+      'UNDER/OVER update는 논문 파라미터를 kernel sysctl/trace로 노출하는 작업을 포함합니다.',
+    ],
+    ['paper-dpas-state-machine 카드에서 논문 transition을 확인합니다.', 'Part 7 validation 카드에서 mode counter 관측 항목을 준비합니다.'],
+  ),
+  'part6-interrupt-mode': sections(
+    'Part 6는 sustained overload에서 interrupt mode로 전환할 때 submission-side REQ_POLLED 제어, HCTX_TYPE mapping, NVMe poll/IRQ queue 분리를 검증하는 단계입니다. completion path에서 poll을 skip하는 것만으로는 부족할 수 있습니다.',
+    'interrupt risk 카드의 설계 질문을 실제 검증 계획으로 바꿉니다. future I/O가 DEFAULT hctx/IRQ queue로 submit되는지 counter와 trace로 증명해야 합니다.',
+    'Notion Part 6와 drivers/nvme/host/pci.c의 NVMEQ_POLLED, poll queue setup, IRQ handler 경로를 함께 봅니다. FIO latency 변화만으로 success를 판단하지 않습니다.',
+    [
+      'pseudo-interrupt(completion skip only)와 true interrupt mode를 구분해야 합니다.',
+      '이미 POLL hctx에 들어간 inflight I/O와 future I/O는 다르게 다룰 수 있습니다.',
+      'NVMe queue mapping 표와 REQ_POLLED counter가 Part 6 산출물 후보입니다.',
+    ],
+    ['interrupt risk 카드에서 submission-side proof 요구사항을 확인합니다.', 'path-interrupt-completion 카드에서 IRQ complete path를 대조합니다.'],
+  ),
+};
+
+/** graph-node width(240px) + gap — cards.ts positions only */
+const LAYOUT_COL = 300;
+const LAYOUT_ROW = 220;
+
+function cardPos(col: number, row: number): { x: number; y: number } {
+  return { x: col * LAYOUT_COL, y: row * LAYOUT_ROW };
+}
+
+const draftCards: CardDraft[] = [
+  {
+    id: 'repo-overview',
+    kind: 'Repo',
+    status: '잠정',
+    title: 'DPAS Migration Learning Tree',
+    shortTitle: 'DPAS Tree',
+    summary: 'DPAS migration을 kernel 용어와 I/O path 중심으로 따라가는 학습 지도입니다.',
+    position: cardPos(0, 0),
+    sourceKeys: ['notionMigrationIndex', 'notionPart1BuildLoop', 'notionStep1', 'notionPart2'],
+    visual: repoOverviewVisual,
+    plain: '이 트리는 migration Part 순서 자체보다 kernel object와 path를 먼저 잡습니다.',
+    why: 'bio/request/hctx/REQ_POLLED를 모르면 PAS hook 위치와 interrupt mode 판단이 흔들립니다.',
+    context: 'DPAS_FAST26 Notion Part 1-9와 local kernel source reading을 카드로 연결합니다.',
+  },
+  {
+    id: 'part1-build-boot-loop',
+    kind: '현재 작업',
+    status: '확정',
+    title: 'Part 1 Kernel Build/Boot Loop',
+    shortTitle: 'build loop',
+    summary: 'DPAS 구현 전에 kernel 수정, 빌드, 로그 확인, 복구 루프를 먼저 닫는 준비 단계입니다.',
+    position: cardPos(-4, 1),
+    sourceKeys: ['notionPart1BuildLoop', 'notionMigrationIndex'],
+    visual: buildLoopVisual,
+    plain: 'Part 1은 DPAS 코드를 아직 이식하지 않고 kernel 작업 루프를 검증하는 단계입니다.',
+    why: 'block layer hot path를 건드리기 전에 빌드와 복구 루프가 닫혀 있어야 합니다.',
+    context: 'Dpas-migration index의 첫 번째 child page이며 Part 3 코드 리딩 전에 필요한 안전장치입니다.',
+  },
+  {
+    id: 'kernel-io-completion-model',
+    kind: '개념',
+    status: '잠정',
+    title: 'Kernel I/O completion model',
+    shortTitle: 'completion model',
+    summary: 'I/O 완료를 interrupt로 받을지, poll로 직접 확인할지 나누는 큰 모델입니다.',
+    position: cardPos(-3, 1),
+    sourceKeys: ['notionPart3', 'localKernel'],
+    visual: completionModelVisual,
+    plain: '완료 확인 방식은 interrupt completion과 polled completion으로 나뉩니다.',
+    why: 'DPAS는 polling 비용을 줄이려는 연구라 completion model 이해가 출발점입니다.',
+    context: 'Part 3 polling path, Part 6 interrupt mode 논의의 상위 개념입니다.',
+  },
+  {
+    id: 'concept-blk-mq',
+    kind: '개념',
+    status: '잠정',
+    title: 'blk-mq',
+    shortTitle: 'blk-mq',
+    summary: 'Linux block multi-queue layer이며 bio를 request로 바꿔 hardware queue로 보냅니다.',
+    position: cardPos(-2, 1),
+    sourceKeys: ['notionPart3', 'localKernel'],
+    visual: blkMqStructureVisual,
+    plain: 'blk-mq는 block I/O를 여러 hardware queue에 나눠 제출하는 block layer 구조입니다.',
+    why: 'DPAS hook은 결국 blk-mq polling 경로 어딘가에 붙습니다.',
+    context: 'block/bio.c, block/blk-mq.c, NVMe driver path를 잇는 중심축입니다.',
+  },
+  {
+    id: 'concept-ctx',
+    kind: '개념',
+    status: '확정',
+    title: 'software context (ctx)',
+    shortTitle: 'ctx',
+    summary: 'per-CPU software queue이며 op flag에 따라 ctx->hctxs[]로 hctx를 고릅니다.',
+    position: cardPos(-1, 1),
+    sourceKeys: ['localKernel', 'notionPart3'],
+    visual: ctxVisual,
+    plain: 'blk_mq_ctx는 submit CPU에 붙은 software queue context입니다.',
+    why: 'ctx와 hctx를 구분해야 queue mapping과 DPAS state 위치를 올바르게 잡을 수 있습니다.',
+    context: 'block/blk-mq.h의 blk_mq_map_queue(opf, ctx)가 ctx->hctxs[type]을 반환합니다.',
+    confusions: ['ctx는 CPU-side, hctx는 hardware queue-side입니다.', 'ctx 1개가 hctx 1개와 같지 않습니다.'],
+  },
+  {
+    id: 'concept-mq-ops',
+    kind: '개념',
+    status: '확정',
+    title: 'mq_ops driver callbacks',
+    shortTitle: 'mq_ops',
+    summary: 'queue_rq / poll / complete callback으로 block layer와 driver를 연결합니다.',
+    position: cardPos(0, 1),
+    sourceKeys: ['localKernel', 'notionPart3'],
+    visual: mqOpsVisual,
+    plain: 'blk_mq_ops는 driver가 구현하는 callback table입니다.',
+    why: 'submit/poll/interrupt completion 경계를 mq_ops 기준으로 봐야 hook 위치를 비교할 수 있습니다.',
+    context: 'NVMe PCI는 nvme_queue_rq와 nvme_poll을 등록합니다 (drivers/nvme/host/pci.c).',
+  },
+  {
+    id: 'concept-bio',
+    kind: '개념',
+    status: '확정',
+    title: 'bio',
+    shortTitle: 'bio',
+    summary: 'block layer로 들어오는 I/O 단위이며 poll 가능 여부와 cookie를 들고 있습니다.',
+    position: cardPos(-3, 2),
+    sourceKeys: ['notionStep1'],
+    visual: bioVisual,
+    plain: 'bio는 block I/O 요청의 기본 단위입니다. polled I/O에서는 bio->bi_cookie가 중요합니다.',
+    why: 'bio_poll()은 bio에서 cookie를 읽고 poll 가능 여부를 결정합니다.',
+    context: 'Step 1에서 bio_poll()의 입력 객체로 등장합니다.',
+    confusions: ['bio는 device driver에 바로 제출되는 최종 단위가 아닙니다.', 'bi_cookie는 request tag가 아닙니다.'],
+  },
+  {
+    id: 'path-io-uring-iopoll',
+    kind: '현재 작업',
+    status: '확정',
+    title: 'io_uring IOPOLL path',
+    shortTitle: 'io_uring IOPOLL',
+    summary: 'IORING_SETUP_IOPOLL -> IOCB_HIPRI -> REQ_POLLED -> iocb_bio_iopoll -> bio_poll() 경로입니다.',
+    position: cardPos(-4, 2),
+    sourceKeys: ['localKernel', 'notionStep1'],
+    visual: ioUringIopollVisual,
+    plain: 'io_uring IOPOLL은 userspace polled I/O 의도가 kernel block poll path로 들어오는 대표 경로입니다.',
+    why: 'FIO io_uring 실험과 REQ_POLLED submit-side 제어(Part 6)를 이해하려면 이 진입점이 필요합니다.',
+    context: 'io_uring/rw.c, block/fops.c, block/blk-core.c iocb_bio_iopoll()을 잇습니다.',
+  },
+  {
+    id: 'concept-request',
+    kind: '개념',
+    status: '잠정',
+    title: 'request',
+    shortTitle: 'request',
+    summary: 'driver에 제출되는 blk-mq 요청 단위입니다.',
+    position: cardPos(-2, 2),
+    sourceKeys: ['notionPart3'],
+    visual: requestVisual,
+    plain: 'request는 blk-mq가 driver에 넘기는 제출 단위입니다.',
+    why: 'request가 어떤 hctx에 묶였는지가 나중에 bi_cookie 저장으로 이어집니다.',
+    context: 'blk_mq_start_request()에서 request와 bio cookie 연결이 보입니다.',
+  },
+  {
+    id: 'concept-hctx',
+    kind: '개념',
+    status: '확정',
+    title: 'hardware context (hctx)',
+    shortTitle: 'hctx',
+    summary: 'blk-mq의 hardware queue context이며 queue_num이 poll cookie가 됩니다.',
+    position: cardPos(-1, 2),
+    sourceKeys: ['notionStep1', 'localKernel'],
+    visual: hctxVisual,
+    plain: 'hctx는 blk-mq가 hardware queue를 다루기 위해 쓰는 per-queue context입니다.',
+    why: 'bi_cookie는 hctx->queue_num이므로 hctx를 모르면 cookie 의미를 오해합니다.',
+    context: 'blk_mq_poll()은 cookie로 q->queue_hw_ctx[cookie]를 찾습니다.',
+    confusions: ['hctx는 CPU 자체가 아니라 hardware queue context입니다.', 'hctx->queue_num은 request tag가 아닙니다.'],
+  },
+  {
+    id: 'concept-req-polled',
+    kind: '개념',
+    status: '잠정',
+    title: 'REQ_POLLED',
+    shortTitle: 'REQ_POLLED',
+    summary: '이 I/O가 polling completion 경로를 쓴다는 request flag입니다.',
+    position: cardPos(0, 2),
+    sourceKeys: ['notionPart3', 'notionPart6'],
+    visual: reqPolledVisual,
+    plain: 'REQ_POLLED가 설정된 I/O는 interrupt 대신 poll queue completion을 기대합니다.',
+    why: 'true interrupt mode는 이 flag와 queue selection까지 봐야 합니다.',
+    context: 'Part 6에서 completion-path skip만으로 충분한지 의심하는 핵심입니다.',
+  },
+  {
+    id: 'concept-bi-cookie-tag',
+    kind: '오해',
+    status: '확정',
+    title: 'bi_cookie는 tag가 아니다',
+    shortTitle: 'cookie != tag',
+    summary: 'bi_cookie는 hctx queue index이고, tag는 hctx 내부 request slot입니다.',
+    position: cardPos(1, 2),
+    sourceKeys: ['notionStep1'],
+    visual: cookieTagVisual,
+    plain: 'bi_cookie = hctx->queue_num입니다. tag는 request slot이라 의미가 다릅니다.',
+    why: '이걸 틀리면 blk_mq_poll(q, cookie)가 왜 hctx를 찾는지 이해할 수 없습니다.',
+    context: 'Step 1에서 가장 먼저 정정한 오해입니다.',
+    confusions: ['bi_cookie = tag(7) 같은 식으로 읽으면 안 됩니다.', '초기값 BLK_QC_T_NONE(-1)은 poll 불가라는 뜻입니다.'],
+  },
+  {
+    id: 'path-submit-polled',
+    kind: '현재 작업',
+    status: '잠정',
+    title: 'Submit path for polled I/O',
+    shortTitle: 'submit path',
+    summary: 'I/O가 device로 나가기 전 request/hctx/cookie가 정해지는 경로입니다.',
+    position: cardPos(-3, 3),
+    sourceKeys: ['notionStep1', 'localKernel'],
+    visual: submitPathVisual,
+    plain: 'submit 시점은 I/O를 block layer/driver 쪽으로 실제 제출하기 위해 request를 시작하는 시점입니다.',
+    why: 'poll path만 보면 bi_cookie가 어디서 생겼는지 놓칩니다.',
+    context: 'blk_mq_start_request()에서 bio->bi_cookie가 저장됩니다.',
+  },
+  {
+    id: 'function-blk-mq-start-request',
+    kind: '모듈',
+    status: '확정',
+    title: 'blk_mq_start_request()',
+    shortTitle: 'start_request',
+    summary: 'driver issue 시점에 polled bio의 bi_cookie = hctx->queue_num을 저장합니다.',
+    position: cardPos(-2, 3),
+    sourceKeys: ['localKernel', 'notionStep1'],
+    visual: startRequestVisual,
+    plain: 'blk_mq_start_request()는 cookie가 생기는 정확한 함수입니다.',
+    why: 'submit vs poll 경계에서 cookie 생성 시점을 이 함수로 고정해야 합니다.',
+    context: 'block/blk-mq.c:1368-1393, REQ_POLLED bio만 bi_cookie를 WRITE_ONCE합니다.',
+  },
+  {
+    id: 'path-poll-completion',
+    kind: '현재 작업',
+    status: '잠정',
+    title: 'Poll completion path',
+    shortTitle: 'poll path',
+    summary: 'bio_poll()에서 시작해 blk_mq_poll(), blk_hctx_poll(), nvme_poll()로 내려가는 완료 확인 경로입니다.',
+    position: cardPos(-1, 3),
+    sourceKeys: ['notionStep1', 'notionPart3'],
+    visual: pollPathVisual,
+    plain: 'poll 시점은 완료 interrupt를 기다리지 않고 CPU가 completion queue를 직접 확인하는 시점입니다.',
+    why: 'PAS sleep-before-poll hook 후보는 이 경로에서 찾아야 합니다.',
+    context: 'Part 3 Step 1의 핵심 코드 리딩 경로입니다.',
+  },
+  {
+    id: 'path-interrupt-completion',
+    kind: '현재 작업',
+    status: '확정',
+    title: 'Interrupt completion path',
+    shortTitle: 'IRQ completion',
+    summary: 'IRQ -> blk_mq_complete_request() -> mq_ops->complete() 또는 BLOCK_SOFTIRQ 경로입니다.',
+    position: cardPos(0, 3),
+    sourceKeys: ['localKernel', 'notionPart3'],
+    visual: interruptCompletionVisual,
+    plain: 'REQ_POLLED 없는 I/O는 interrupt/softirq completion path로 끝납니다.',
+    why: 'polled path와 대칭으로 알아야 DPAS interrupt mode가 바꿔야 할 지점을 구분할 수 있습니다.',
+    context: 'block/blk-mq.c blk_mq_complete_request()와 NVMe IRQ handler가 연결됩니다.',
+  },
+  {
+    id: 'function-bio-poll',
+    kind: '모듈',
+    status: '잠정',
+    title: 'bio_poll()',
+    shortTitle: 'bio_poll',
+    summary: 'bio->bi_cookie를 읽고 BLK_QC_T_NONE이면 poll을 하지 않습니다.',
+    position: cardPos(-3, 4),
+    sourceKeys: ['notionStep1'],
+    visual: bioPollVisual,
+    plain: 'bio_poll()은 poll entry입니다. cookie가 없으면 바로 0을 반환합니다.',
+    why: '초기값 -1이면 poll 불가라는 문장이 여기서 의미를 갖습니다.',
+    context: 'block/bio.c 쪽 polling entry로 읽습니다.',
+  },
+  {
+    id: 'function-blk-mq-poll',
+    kind: '모듈',
+    status: '잠정',
+    title: 'blk_mq_poll()',
+    shortTitle: 'blk_mq_poll',
+    summary: 'cookie로 queue_hw_ctx를 찾아 hctx polling으로 넘깁니다.',
+    position: cardPos(-2, 4),
+    sourceKeys: ['notionStep1'],
+    visual: blkMqPollVisual,
+    plain: 'blk_mq_poll(q, cookie)는 q->queue_hw_ctx[cookie]로 hctx를 찾습니다.',
+    why: 'cookie가 hctx index라는 사실이 여기서 직접 쓰입니다.',
+    context: 'block/blk-mq.c의 poll dispatch 단계입니다.',
+  },
+  {
+    id: 'function-blk-hctx-poll',
+    kind: '모듈',
+    status: '잠정',
+    title: 'blk_hctx_poll()',
+    shortTitle: 'blk_hctx_poll',
+    summary: 'hctx의 mq_ops->poll()을 반복 호출하고 cpu_relax()를 사용합니다.',
+    position: cardPos(-1, 4),
+    sourceKeys: ['notionStep1'],
+    visual: blkHctxPollVisual,
+    plain: 'blk_hctx_poll()은 driver poll callback을 부르는 block layer polling loop입니다.',
+    why: 'cpu_relax()는 PAS sleep이 아니므로 이 함수의 loop를 잘못 해석하면 안 됩니다.',
+    context: 'PAS hook 후보와 cpu_relax 오해가 만나는 지점입니다.',
+  },
+  {
+    id: 'function-nvme-poll',
+    kind: '모듈',
+    status: '잠정',
+    title: 'nvme_poll()',
+    shortTitle: 'nvme_poll',
+    summary: 'NVMe poll queue의 completion queue를 확인하는 driver callback입니다.',
+    position: cardPos(0, 4),
+    sourceKeys: ['notionPart3', 'localKernel'],
+    visual: nvmePollVisual,
+    plain: 'nvme_poll()은 block layer mq_ops->poll() 아래의 NVMe driver 구현입니다.',
+    why: 'DPAS가 실제 device completion을 어디서 확인하는지 끝단을 잡아줍니다.',
+    context: 'drivers/nvme/host 경로의 poll callback 후보입니다.',
+  },
+  {
+    id: 'concept-pas-sleep-before-poll',
+    kind: '개념',
+    status: '검증 필요',
+    title: 'PAS sleep-before-poll',
+    shortTitle: 'PAS hook',
+    summary: 'poll 전에 짧게 sleep하여 CPU busy polling 비용을 줄이는 핵심 아이디어입니다.',
+    position: cardPos(-2, 5),
+    sourceKeys: ['notionPart2', 'notionPart4'],
+    visual: pasSleepVisual,
+    plain: 'PAS는 completion queue를 계속 바쁘게 확인하기 전에 잠깐 쉬는 방식입니다.',
+    why: 'DPAS migration의 최소 구현 단위는 이 sleep-before-poll hook을 올바른 위치에 넣는 것입니다.',
+    context: 'Part 4 Minimal PAS-only port의 중심입니다.',
+  },
+  {
+    id: 'concept-dpas-mode',
+    kind: '개념',
+    status: '검증 필요',
+    title: 'DPAS mode switching',
+    shortTitle: 'DPAS mode',
+    summary: '부하 상태에 따라 CP/PAS/Interrupt 계열 모드를 바꾸는 정책입니다.',
+    position: cardPos(-1, 5),
+    sourceKeys: ['notionPart2', 'notionPart5'],
+    visual: modeVisual,
+    plain: 'DPAS는 하나의 sleep 값이 아니라 상태에 따라 polling policy를 바꾸는 구조입니다.',
+    why: 'Minimal PAS가 된 뒤 full DPAS로 가려면 mode counter와 transition reason이 필요합니다.',
+    context: 'Part 5와 논문 Figure 10을 연결합니다.',
+  },
+  {
+    id: 'risk-interrupt-submission',
+    kind: '미해결',
+    status: '검증 필요',
+    title: 'Interrupt mode requires submission-side proof',
+    shortTitle: 'interrupt risk',
+    summary: 'true interrupt mode는 poll skip만으로 충분하지 않고 REQ_POLLED/queue selection 확인이 필요합니다.',
+    position: cardPos(0, 5),
+    sourceKeys: ['notionPart6'],
+    visual: interruptRiskVisual,
+    plain: '이미 polled queue로 제출된 I/O를 completion path에서만 skip하면 true interrupt mode라고 보기 어렵습니다.',
+    why: 'DPAS mode switching 구현에서 가장 큰 설계 리스크입니다.',
+    context: 'Part 6 Full Interrupt Mode & NVMe Queue Mapping의 핵심 질문입니다.',
+  },
+  {
+    id: 'part4-minimal-pas',
+    kind: '사건',
+    status: '잠정',
+    title: 'Part 4 Minimal PAS-only port',
+    shortTitle: 'Part 4 PAS',
+    summary: '먼저 PAS sleep-before-poll만 최신 kernel에 이식하는 단계입니다.',
+    position: cardPos(-3, 6),
+    sourceKeys: ['notionPart4'],
+    visual: part4Visual,
+    plain: 'Part 4는 full DPAS 전에 최소 PAS hook을 닫는 단계입니다.',
+    why: '첫 구현 범위를 줄여야 hook 위치와 latency impact를 검증할 수 있습니다.',
+    context: 'DPAS migration의 첫 구현 milestone입니다.',
+  },
+  {
+    id: 'part5-mode-switching',
+    kind: '사건',
+    status: '잠정',
+    title: 'Part 5 DPAS Mode Switching',
+    shortTitle: 'Part 5 mode',
+    summary: 'PAS-only 위에 CP/PAS/IRQ state machine과 UNDER/OVER update를 올리는 단계입니다.',
+    position: cardPos(-2, 6),
+    sourceKeys: ['notionPart5', 'notionPart2'],
+    visual: part5Visual,
+    plain: 'Part 5는 고정 sleep_ns를 workload 적응형 DPAS policy로 확장합니다.',
+    why: 'Minimal PAS와 full DPAS를 분리하지 않으면 mode transition 버그 원인을 찾기 어렵습니다.',
+    context: 'Figure 10 state machine 포팅과 mode counter/trace가 핵심 산출물입니다.',
+  },
+  {
+    id: 'part7-validation',
+    kind: '사건',
+    status: '잠정',
+    title: 'Part 7 FIO validation',
+    shortTitle: 'FIO validation',
+    summary: 'FIO로 latency/CPU/IOPS와 mode breakdown을 검증하는 단계입니다.',
+    position: cardPos(-1, 6),
+    sourceKeys: ['notionPart7'],
+    visual: part7Visual,
+    plain: 'Part 7은 구현이 맞는지 성능과 mode counter로 확인하는 검증 계획입니다.',
+    why: 'DPAS는 정책 연구이므로 코드가 동작하는 것만으로는 충분하지 않습니다.',
+    context: 'FIO microbenchmark, latency percentile, CPU 사용량, mode counter가 필요합니다.',
+  },
+  {
+    id: 'part6-interrupt-mode',
+    kind: '사건',
+    status: '잠정',
+    title: 'Part 6 Full Interrupt Mode',
+    shortTitle: 'Part 6 IRQ',
+    summary: 'interrupt mode 전환 시 REQ_POLLED/queue mapping/NVMe poll queue를 submission-side에서 검증합니다.',
+    position: cardPos(0, 6),
+    sourceKeys: ['notionPart6', 'localKernel'],
+    visual: part6Visual,
+    plain: 'Part 6는 true interrupt mode가 submit부터 IRQ queue로 가는지 증명하는 단계입니다.',
+    why: 'completion path skip만으로는 interrupt risk 카드의 질문을 닫을 수 없습니다.',
+    context: 'drivers/nvme/host/pci.c queue mapping과 REQ_POLLED counter/trace가 필요합니다.',
+  },
+  {
+    id: 'mis-submit-vs-poll',
+    kind: '오해',
+    status: '확정',
+    title: 'submit path와 poll path를 섞으면 안 된다',
+    shortTitle: 'submit != poll',
+    summary: 'cookie는 submit에서 생기고 poll에서 소비됩니다.',
+    position: cardPos(-4, 5),
+    sourceKeys: ['notionStep1'],
+    visual: misSubmitPollVisual,
+    plain: 'submit 시점은 I/O를 내보내는 시점이고, poll 시점은 완료를 확인하는 시점입니다.',
+    why: '두 경로를 섞으면 bi_cookie 생성 위치를 잘못 잡습니다.',
+    context: 'Step 1 대화에서 submit 시점 질문을 통해 분리한 개념입니다.',
+  },
+  {
+    id: 'mis-cpu-relax-sleep',
+    kind: '오해',
+    status: '확정',
+    title: 'cpu_relax()는 PAS sleep이 아니다',
+    shortTitle: 'relax != sleep',
+    summary: 'cpu_relax()는 busy loop hint이지 PAS의 sleep-before-poll이 아닙니다.',
+    position: cardPos(1, 4),
+    sourceKeys: ['notionStep1'],
+    visual: misCpuRelaxVisual,
+    plain: 'cpu_relax()는 CPU busy-wait loop에서 쓰는 hint입니다.',
+    why: 'PAS hook을 cpu_relax와 동일시하면 DPAS 논문 아이디어를 잘못 구현합니다.',
+    context: 'blk_hctx_poll() 해석에서 반드시 분리해야 하는 오해입니다.',
+  },
+  {
+    id: 'paper-pas-core',
+    kind: '개념',
+    status: '잠정',
+    title: 'DPAS paper PAS core',
+    shortTitle: 'paper PAS',
+    summary: '논문의 PAS 아이디어를 kernel polling path의 hook 후보로 바꿔 읽는 카드입니다.',
+    position: cardPos(-3, 5),
+    sourceKeys: ['notionPart2'],
+    visual: paperPasVisual,
+    plain: '논문 PAS는 polling 비용을 줄이기 위해 poll 전에 쉬는 아이디어입니다.',
+    why: '논문 figure를 코드 위치로 번역하는 bridge가 필요합니다.',
+    context: 'Part 2 Figure 1/3/7/9 논의와 Part 4 hook 계획 사이입니다.',
+  },
+  {
+    id: 'paper-dpas-state-machine',
+    kind: '개념',
+    status: '잠정',
+    title: 'DPAS paper state machine',
+    shortTitle: 'paper DPAS',
+    summary: '논문 Figure 10의 state machine을 kernel mode switching 설계로 번역합니다.',
+    position: cardPos(1, 5),
+    sourceKeys: ['notionPart2', 'notionPart5'],
+    visual: paperDpasVisual,
+    plain: 'DPAS state machine은 부하 상태에 따라 polling policy를 바꾸는 모델입니다.',
+    why: '이 모델이 있어야 PAS-only에서 full DPAS로 넘어갈 수 있습니다.',
+    context: 'Part 5 mode switching과 Part 6 interrupt risk의 논문 쪽 출발점입니다.',
+  },
+];
+
+export const graphCards: GraphCard[] = draftCards.map((card) => {
+  const sources = (card.sourceKeys ?? ['notionStep1']).map((key) => evidenceSources[key]);
+  const expanded = expandedSections[card.id];
+  const commonConfusions = expanded?.commonConfusions ?? card.confusions ?? [
+    'migration Part 번호만 따라가면 kernel 객체 관계를 놓치기 쉽습니다.',
+    '논문 용어와 kernel 함수 이름은 1:1로 바로 대응되지 않습니다.',
+  ];
+  const nextSteps = expanded?.nextSteps ?? card.next ?? ['연결된 코드 흐름 카드를 확인합니다.', '관련 Notion Part와 local kernel source를 대조합니다.'];
+  const cardSections = expanded ?? sections(card.plain, card.why, card.context, commonConfusions, nextSteps);
+
+  return {
+    id: card.id,
+    kind: card.kind,
+    status: card.status,
+    title: card.title,
+    shortTitle: card.shortTitle,
+    summary: card.summary,
+    details: [cardSections.plainExplanation, cardSections.whyItMatters, cardSections.repoContext],
+    sections: cardSections,
+    visual: card.visual,
+    sourcePath: card.sourcePath ?? `src/knowledge-graph/cards.ts#${card.id}`,
+    sources,
+    position: card.position,
+  };
+});

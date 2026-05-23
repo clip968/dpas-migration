@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.playwright-cli/
+.serena/
+.codex/
+.agents/
+
+*.log
+.DS_Store
