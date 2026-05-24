@@ -1,0 +1,67 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { App } from './App';
+
+const fitViewMock = vi.fn(() => Promise.resolve(true));
+
+vi.mock('@xyflow/react', async () => {
+  const React = await import('react');
+
+  return {
+    Background: () => null,
+    Controls: () => null,
+    Handle: () => null,
+    MarkerType: { ArrowClosed: 'arrowclosed' },
+    MiniMap: () => null,
+    Panel: ({ children, position }: { children: React.ReactNode; position: string }) => (
+      <div data-position={position}>{children}</div>
+    ),
+    Position: {
+      Bottom: 'bottom',
+      Left: 'left',
+      Right: 'right',
+      Top: 'top',
+    },
+    ReactFlow: ({ children, onInit }: { children: React.ReactNode; onInit?: (instance: { fitView: typeof fitViewMock }) => void }) => {
+      React.useEffect(() => {
+        onInit?.({ fitView: fitViewMock });
+      }, [onInit]);
+
+      return <div data-testid="react-flow">{children}</div>;
+    },
+  };
+});
+
+describe('App tree viewport', () => {
+  afterEach(() => {
+    cleanup();
+    fitViewMock.mockClear();
+  });
+
+  it('centers the tree after ReactFlow initializes', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(fitViewMock).toHaveBeenCalledWith(expect.objectContaining({ padding: expect.any(Number) }));
+    });
+  });
+
+  it('provides a bottom-right button that recenters the tree', async () => {
+    render(<App />);
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    fitViewMock.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: /트리 중앙으로/ }));
+
+    expect(fitViewMock).toHaveBeenCalledWith(expect.objectContaining({ duration: expect.any(Number) }));
+  });
+
+  it('does not render the full card list in the sidebar', () => {
+    const { container } = render(<App />);
+
+    expect(container.querySelector('.card-list')).toBeNull();
+    expect(screen.queryByPlaceholderText(/bio/)).toBeNull();
+  });
+});

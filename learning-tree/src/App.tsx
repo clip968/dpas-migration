@@ -1,19 +1,22 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Background,
   Controls,
-  Edge,
   Handle,
   MarkerType,
   MiniMap,
-  Node,
+  Panel,
   NodeProps,
   Position,
   ReactFlow,
+  type Edge,
+  type FitViewOptions,
+  type Node,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import mermaid from 'mermaid';
-import { AlertTriangle, BookOpen, CheckCircle2, CircleHelp, Filter, GitCommit, GitBranch, Inbox, Route, Search, Target, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, CheckCircle2, CircleHelp, Crosshair, Filter, GitCommit, GitBranch, Inbox, Route, Target, X } from 'lucide-react';
 import {
   defaultEdgeKinds,
   edgeKindLabels,
@@ -43,6 +46,13 @@ type KnowledgeNodeData = {
 type CommunityNodeData = {
   community: GraphCommunity;
   visibleCount: number;
+};
+
+const treeFitViewOptions: FitViewOptions = {
+  includeHiddenNodes: false,
+  maxZoom: 0.95,
+  minZoom: 0.35,
+  padding: 0.18,
 };
 
 const kindConfig = {
@@ -469,11 +479,11 @@ const focusOptions: Array<{ id: FocusDepth; label: string }> = [
 
 export function App() {
   const [selectedId, setSelectedId] = useState('repo-overview');
-  const [query, setQuery] = useState('');
   const [selectedPathId, setSelectedPathId] = useState(learningPaths[0]?.id ?? '');
   const [focusDepth, setFocusDepth] = useState<FocusDepth>(2);
   const [enabledEdgeKinds, setEnabledEdgeKinds] = useState<EdgeKind[]>(defaultEdgeKinds);
   const [modalOpen, setModalOpen] = useState(false);
+  const flowInstanceRef = useRef<ReactFlowInstance | null>(null);
   const selected = graphCards.find((card) => card.id === selectedId) ?? graphCards[0];
   const relations = getCardRelations(selected.id);
   const affectedCandidates = updateCandidates.filter((candidate) => candidate.affectedCardIds.includes(selected.id));
@@ -488,6 +498,25 @@ export function App() {
   const nodes = useMemo(() => buildNodes(focusGraph.cards, selected.id), [focusGraph.cards, selected.id]);
   const edges = useMemo(() => buildEdges(focusGraph.edges, selected.id), [focusGraph.edges, selected.id]);
 
+  const centerTree = useCallback((duration = 420) => {
+    void flowInstanceRef.current?.fitView({
+      ...treeFitViewOptions,
+      duration,
+    });
+  }, []);
+
+  const handleFlowInit = useCallback((instance: ReactFlowInstance) => {
+    flowInstanceRef.current = instance;
+    window.setTimeout(() => centerTree(0), 0);
+  }, [centerTree]);
+
+  useEffect(() => {
+    if (!flowInstanceRef.current) return;
+
+    const timeoutId = window.setTimeout(() => centerTree(240), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [centerTree, enabledEdgeKinds, focusDepth, selected.id]);
+
   function toggleEdgeKind(kind: EdgeKind) {
     setEnabledEdgeKinds((current) => {
       if (current.includes(kind)) return current.length === 1 ? current : current.filter((item) => item !== kind);
@@ -500,14 +529,6 @@ export function App() {
     setModalOpen(true);
   }
 
-  const filteredCards = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return graphCards;
-    return graphCards.filter((card) =>
-      [card.title, card.shortTitle, card.summary, card.kind, card.status].join(' ').toLowerCase().includes(needle),
-    );
-  }, [query]);
-
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -515,11 +536,6 @@ export function App() {
           <span>DPAS Migration</span>
           <strong>Kernel I/O 이해 지도</strong>
         </div>
-
-        <label className="search-box">
-          <Search size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="bio, request, hctx, bi_cookie" />
-        </label>
 
         <div className="learning-panel">
           <div className="panel-heading">
@@ -546,24 +562,6 @@ export function App() {
               );
             })}
           </div>
-        </div>
-
-        <div className="card-list">
-          {filteredCards.map((card) => {
-            const active = card.id === selected.id;
-            const config = kindConfig[card.kind];
-            const Icon = config.icon;
-            return (
-              <button className={`list-item ${active ? 'is-active' : ''}`} key={card.id} onClick={() => openCard(card.id)}>
-                <span className={`list-kind ${config.className}`}>
-                  <Icon size={14} />
-                  {card.kind}
-                </span>
-                <strong>{card.shortTitle}</strong>
-                <small>{card.status}</small>
-              </button>
-            );
-          })}
         </div>
 
         <div className="sync-card">
@@ -619,12 +617,18 @@ export function App() {
         </div>
 
         <div className="flow-frame">
-          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView minZoom={0.35} maxZoom={1.25} onNodeClick={(_, node) => {
+          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={treeFitViewOptions} minZoom={0.35} maxZoom={1.25} onInit={handleFlowInit} onNodeClick={(_, node) => {
             if (node.type === 'knowledge') openCard(node.id);
           }} proOptions={{ hideAttribution: true }}>
             <Background gap={22} color="#d8ceb9" />
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable />
+            <Panel position="bottom-right" className="tree-center-panel">
+              <button className="tree-center-button" type="button" onClick={() => centerTree()} title="트리 중앙으로 이동" aria-label="트리 중앙으로 이동">
+                <Crosshair size={16} />
+                <span>트리 중앙으로</span>
+              </button>
+            </Panel>
           </ReactFlow>
         </div>
       </section>

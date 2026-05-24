@@ -35,6 +35,10 @@ body {
   margin: 0;
 }
 
+#root {
+  height: 100vh;
+}
+
 button,
 input {
   font: inherit;
@@ -47,18 +51,20 @@ button {
 .app-shell {
   display: grid;
   grid-template-columns: 360px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border-right: 1px solid var(--kami-border);
   background: rgba(250, 247, 239, 0.94);
+  border-right: 1px solid var(--kami-border);
   box-shadow: inset -1px 0 0 rgba(255, 253, 248, 0.72);
+  display: grid;
+  gap: 14px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
   padding: 20px 18px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .app-title span,
@@ -83,25 +89,6 @@ button {
   margin-top: 4px;
 }
 
-.search-box {
-  align-items: center;
-  background: var(--kami-ivory);
-  border: 1px solid var(--kami-border);
-  border-radius: 8px;
-  box-shadow: 0 3px 10px rgba(45, 38, 28, 0.05);
-  display: flex;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.search-box input {
-  background: transparent;
-  border: 0;
-  color: var(--kami-dark-warm);
-  outline: 0;
-  width: 100%;
-}
-
 .learning-panel,
 .sync-card {
   border: 1px solid var(--kami-border);
@@ -109,6 +96,13 @@ button {
   background: var(--kami-ivory);
   box-shadow: 0 8px 22px rgba(45, 38, 28, 0.06);
   padding: 12px;
+}
+
+.learning-panel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .path-tabs,
@@ -142,7 +136,6 @@ button {
 }
 
 .path-list,
-.card-list,
 .related-list {
   display: flex;
   flex-direction: column;
@@ -150,8 +143,13 @@ button {
   margin-top: 12px;
 }
 
+.path-list {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 3px;
+}
+
 .path-step,
-.list-item,
 .related-list button {
   background: var(--kami-ivory);
   border: 1px solid var(--kami-border);
@@ -164,14 +162,12 @@ button {
   text-align: left;
 }
 
-.path-step.is-active,
-.list-item.is-active {
+.path-step.is-active {
   border-color: var(--kami-brand);
   box-shadow: 0 0 0 2px rgba(27, 54, 93, 0.12);
 }
 
 .path-step span,
-.list-kind,
 .node-kind,
 .node-status {
   align-items: center;
@@ -197,6 +193,7 @@ button {
 .map-panel {
   display: grid;
   grid-template-rows: auto auto 1fr;
+  min-height: 100vh;
   min-width: 0;
 }
 
@@ -255,7 +252,36 @@ button {
     linear-gradient(0deg, rgba(216, 206, 185, 0.24) 1px, transparent 1px),
     var(--kami-parchment);
   background-size: 44px 44px;
-  min-height: 0;
+  min-height: 520px;
+}
+
+.flow-frame .react-flow {
+  min-height: 520px;
+}
+
+.tree-center-panel {
+  margin: 0 14px 14px 0;
+}
+
+.tree-center-button {
+  align-items: center;
+  background: var(--kami-brand);
+  border: 1px solid rgba(255, 253, 248, 0.72);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(27, 54, 93, 0.24);
+  color: var(--kami-ivory);
+  display: flex;
+  font-family: var(--kami-ui);
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.tree-center-button:hover,
+.tree-center-button:focus-visible {
+  background: var(--kami-brand-light);
 }
 
 .community-node {
@@ -1068,9 +1094,17 @@ button {
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .map-panel {
+    order: 1;
   }
 
   .sidebar {
+    order: 2;
     max-height: 46vh;
   }
 
