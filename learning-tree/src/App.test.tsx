@@ -58,6 +58,17 @@ describe('App tree viewport', () => {
     expect(fitViewMock).toHaveBeenCalledWith(expect.objectContaining({ duration: expect.any(Number) }));
   });
 
+  it('does not reset the viewport when a path card is selected', async () => {
+    render(<App />);
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    fitViewMock.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: /build loop/ }));
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+
+    expect(fitViewMock).not.toHaveBeenCalled();
+  });
+
   it('does not render the full card list in the sidebar', () => {
     const { container } = render(<App />);
 

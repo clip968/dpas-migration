@@ -515,7 +515,7 @@ export function App() {
 
     const timeoutId = window.setTimeout(() => centerTree(240), 0);
     return () => window.clearTimeout(timeoutId);
-  }, [centerTree, enabledEdgeKinds, focusDepth, selected.id]);
+  }, [centerTree, enabledEdgeKinds, focusDepth]);
 
   function toggleEdgeKind(kind: EdgeKind) {
     setEnabledEdgeKinds((current) => {
