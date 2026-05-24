@@ -20,12 +20,14 @@ import {
   getCardRelations,
   getFocusGraph,
   graphCards,
+  graphCommunities,
   learningPaths,
   getRelatedCards,
   type EdgeKind,
   type EvidenceSource,
   type FocusDepth,
   type GraphCard,
+  type GraphCommunity,
   type GraphEdge as KnowledgeGraphEdge,
   type VisualModel,
   updateCandidates,
@@ -36,6 +38,11 @@ type KnowledgeNodeData = {
   card: GraphCard;
   selected: boolean;
   related: boolean;
+};
+
+type CommunityNodeData = {
+  community: GraphCommunity;
+  visibleCount: number;
 };
 
 const kindConfig = {
@@ -60,6 +67,20 @@ const edgeKindClass: Record<EdgeKind, string> = {
   원인: 'edge-cause',
   증거: 'edge-evidence',
   정정: 'edge-correction',
+};
+
+const edgeKindColor: Record<EdgeKind, string> = {
+  '이해 필요': '#1b365d',
+  '코드 흐름': '#0f766e',
+  '논문 대응': '#6842a0',
+  마이그레이션: '#b7791f',
+  '검증 근거': '#2d5a8a',
+  '오해 방지': '#b42318',
+  리스크: '#b42318',
+  미해결: '#746f64',
+  원인: '#9a6420',
+  증거: '#2d5a8a',
+  정정: '#0f766e',
 };
 
 function KnowledgeNode({ data }: NodeProps<Node<KnowledgeNodeData>>) {
@@ -95,12 +116,45 @@ function KnowledgeNode({ data }: NodeProps<Node<KnowledgeNodeData>>) {
   );
 }
 
-const nodeTypes = { knowledge: KnowledgeNode };
+function CommunityNode({ data }: NodeProps<Node<CommunityNodeData>>) {
+  const { community, visibleCount } = data;
 
-function buildNodes(cards: GraphCard[], selectedId: string): Node<KnowledgeNodeData>[] {
+  return (
+    <div className={['community-node', `community-${community.tone}`].join(' ')}>
+      <div className="community-heading">
+        <strong>{community.title}</strong>
+        <span>{visibleCount} cards</span>
+      </div>
+      <p>{community.description}</p>
+    </div>
+  );
+}
+
+const nodeTypes = { knowledge: KnowledgeNode, community: CommunityNode };
+
+function buildNodes(cards: GraphCard[], selectedId: string): Node[] {
   const relatedIds = new Set(getRelatedCards(selectedId).map((card) => card.id));
+  const visibleCommunityIds = new Set(cards.map((card) => card.community));
+  const communityNodes: Node<CommunityNodeData>[] = graphCommunities
+    .filter((community) => visibleCommunityIds.has(community.id))
+    .map((community) => ({
+      id: `community-${community.id}`,
+      type: 'community',
+      position: community.position,
+      data: {
+        community,
+        visibleCount: cards.filter((card) => card.community === community.id).length,
+      },
+      draggable: false,
+      selectable: false,
+      zIndex: -1,
+      style: {
+        width: community.size.width,
+        height: community.size.height,
+      },
+    }));
 
-  return cards.map((card) => ({
+  const cardNodes: Node<KnowledgeNodeData>[] = cards.map((card) => ({
     id: card.id,
     type: 'knowledge',
     position: card.position,
@@ -110,6 +164,8 @@ function buildNodes(cards: GraphCard[], selectedId: string): Node<KnowledgeNodeD
       related: relatedIds.has(card.id),
     },
   }));
+
+  return [...communityNodes, ...cardNodes];
 }
 
 function buildEdges(edges: KnowledgeGraphEdge[], selectedId: string): Edge[] {
@@ -135,8 +191,12 @@ function buildEdges(edges: KnowledgeGraphEdge[], selectedId: string): Edge[] {
       targetHandle,
       type: 'smoothstep',
       animated: active,
-      markerEnd: { type: MarkerType.ArrowClosed },
+      markerEnd: { type: MarkerType.ArrowClosed, color: edgeKindColor[edge.kind] },
       className: [active ? 'edge-active' : 'edge-muted', edgeKindClass[edge.kind]].join(' '),
+      style: {
+        stroke: edgeKindColor[edge.kind],
+        strokeWidth: active ? 2.8 : 2.1,
+      },
     };
   });
 }
@@ -559,8 +619,10 @@ export function App() {
         </div>
 
         <div className="flow-frame">
-          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView minZoom={0.35} maxZoom={1.25} onNodeClick={(_, node) => openCard(node.id)} proOptions={{ hideAttribution: true }}>
-            <Background gap={22} color="#d5dbe5" />
+          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView minZoom={0.35} maxZoom={1.25} onNodeClick={(_, node) => {
+            if (node.type === 'knowledge') openCard(node.id);
+          }} proOptions={{ hideAttribution: true }}>
+            <Background gap={22} color="#d8ceb9" />
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable />
           </ReactFlow>

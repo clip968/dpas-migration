@@ -21,6 +21,25 @@ export interface CardSections {
 
 export type VisualTone = 'blue' | 'teal' | 'amber' | 'rose' | 'violet' | 'slate';
 
+export type CommunityId =
+  | 'overview'
+  | 'foundation'
+  | 'step1-polling'
+  | 'step2-submission'
+  | 'dpas-policy'
+  | 'misconceptions'
+  | 'validation';
+
+export interface GraphCommunity {
+  id: CommunityId;
+  title: string;
+  shortTitle: string;
+  description: string;
+  tone: VisualTone;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+}
+
 export interface VisualFlowStep {
   title: string;
   description: string;
@@ -120,6 +139,7 @@ export interface GraphCard {
   id: string;
   kind: CardKind;
   status: CardStatus;
+  community: CommunityId;
   title: string;
   shortTitle: string;
   summary: string;

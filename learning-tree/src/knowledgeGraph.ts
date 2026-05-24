@@ -11,6 +11,7 @@ export type {
   VisualMetricTable,
   VisualModel,
   GraphCard,
+  GraphCommunity,
   EdgeKind,
   GraphEdge,
   CardRelation,
@@ -22,7 +23,7 @@ export type {
   UpdateCandidate,
 } from './knowledge-graph/types';
 
-export { cardContentTemplate, evidenceSources, graphCards } from './knowledge-graph/cards';
+export { cardContentTemplate, evidenceSources, graphCards, graphCommunities } from './knowledge-graph/cards';
 export { edgeKindLabels, defaultEdgeKinds } from './knowledge-graph/labels';
 export { updateSnapshot, updateCandidates } from './knowledge-graph/updates';
 export { learningPaths } from './knowledge-graph/paths';
