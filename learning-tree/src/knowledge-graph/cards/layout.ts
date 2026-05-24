@@ -45,6 +45,16 @@ const communityLayouts: CommunityLayout[] = [
     rows: 2,
   },
   {
+    id: 'step3-queue-hooks',
+    title: 'Step 3: queue mapping and DPAS 5.18 hooks',
+    shortTitle: 'Step 3',
+    description: '최신 poll queue foundation과 DPAS 5.18 PAS/full interrupt hook을 분리합니다.',
+    tone: 'rose',
+    position: { x: 1180, y: 40 },
+    columns: 4,
+    rows: 3,
+  },
+  {
     id: 'step1-polling',
     title: 'Step 1: completion polling path',
     shortTitle: 'Step 1',

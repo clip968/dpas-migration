@@ -37,6 +37,15 @@ export const evidenceSources = {
     commitTitle: 'Step 2 - REQ_POLLED 설정 지점 코드 리딩 노트',
     note: 'RWF_HIPRI, IOCB_HIPRI, bio->bi_opf, request->cmd_flags, HCTX_TYPE_POLL, DPAS 5.18 interrupt-mode 비교를 정리한 Step 2 노트입니다.',
   },
+  notionStep3: {
+    id: 'src-notion-step3-queue-hooks',
+    label: 'Notion Part 3 Step 3 - Queue Mapping and DPAS hook note',
+    path: 'Dpas-migration Part 3 / 2026-05-25 Step 3',
+    commitHash: 'notion-2026-05-25-step3',
+    commitDate: '2026-05-25',
+    commitTitle: 'Step 3 - Queue Mapping + DPAS 5.18 Hook 추출 노트',
+    note: '최신 HCTX_TYPE_POLL/NVMe poll queue foundation과 DPAS 5.18의 PAS state, sleep-before-poll, result update, fops.c interrupt hook을 분리한 노트입니다.',
+  },
   notionPart2: {
     id: 'src-notion-part2-paper-model',
     label: 'Notion Part 2 - DPAS paper model',

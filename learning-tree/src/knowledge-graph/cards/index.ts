@@ -9,6 +9,7 @@ import {
   overviewCards,
   step1PollingCards,
   step2SubmissionCards,
+  step3QueueHookCards,
   validationCards,
 } from './drafts';
 
@@ -20,6 +21,7 @@ export const draftCards: CardDraft[] = [
   ...overviewCards,
   ...foundationCards,
   ...step2SubmissionCards,
+  ...step3QueueHookCards,
   ...step1PollingCards,
   ...dpasPolicyCards,
   ...misconceptionCards,

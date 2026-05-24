@@ -26,6 +26,7 @@ export type CommunityId =
   | 'foundation'
   | 'step1-polling'
   | 'step2-submission'
+  | 'step3-queue-hooks'
   | 'dpas-policy'
   | 'misconceptions'
   | 'validation';

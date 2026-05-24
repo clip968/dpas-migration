@@ -5,7 +5,7 @@ export const learningPaths: LearningPath[] = [
     id: 'path-migration-roadmap',
     title: 'Dpas-migration 전체 흐름',
     description: 'Notion index의 Part 1-9를 구현 순서가 아니라 이해 의존성 순서로 훑습니다.',
-    cardIds: ['repo-overview', 'part1-build-boot-loop', 'kernel-io-completion-model', 'path-submit-polled', 'step2-req-polled-submission', 'step2-flag-propagation', 'path-poll-completion', 'part4-minimal-pas', 'concept-dpas-mode', 'risk-interrupt-submission', 'part7-validation'],
+    cardIds: ['repo-overview', 'part1-build-boot-loop', 'kernel-io-completion-model', 'path-submit-polled', 'step2-req-polled-submission', 'step2-flag-propagation', 'step3-overview', 'step3-queue-mapping-foundation', 'step3-dpas-518-hook-inventory', 'step3-part4-boundary', 'path-poll-completion', 'part4-minimal-pas', 'concept-dpas-mode', 'risk-interrupt-submission', 'part7-validation'],
   },
   {
     id: 'path-kernel-first',
@@ -26,6 +26,12 @@ export const learningPaths: LearningPath[] = [
     cardIds: ['path-io-uring-iopoll', 'step2-req-polled-submission', 'step2-kiocb-hipri', 'step2-flag-propagation', 'concept-req-polled', 'function-blk-mq-start-request', 'concept-bi-cookie-tag', 'step2-dpas-518-comparison', 'step2-hook-candidates', 'risk-interrupt-submission', 'part6-interrupt-mode'],
   },
   {
+    id: 'path-step3-queue-hooks',
+    title: 'Step 3: queue mapping과 DPAS hook inventory',
+    description: '최신 poll queue 구조는 건드리지 않고, DPAS 5.18이 추가한 PAS/full interrupt hook을 category별로 분리합니다.',
+    cardIds: ['step3-overview', 'step3-queue-mapping-foundation', 'step3-nvme-poll-queue-map', 'step3-dpas-518-hook-inventory', 'step3-pas-state-duration', 'step3-pas-sleep-update-loop', 'step3-dpas-interrupt-fops-hook', 'step3-part4-boundary'],
+  },
+  {
     id: 'path-paper-to-kernel-hook',
     title: '논문을 kernel hook으로 연결',
     description: 'PAS/DPAS 논문 아이디어를 실제 polling 함수 후보로 옮깁니다.',
@@ -35,12 +41,12 @@ export const learningPaths: LearningPath[] = [
     id: 'path-migration-minimal-to-full',
     title: 'Minimal PAS에서 full DPAS',
     description: 'PAS-only 이후 mode switching과 interrupt risk를 분리해서 봅니다.',
-    cardIds: ['part4-minimal-pas', 'part5-mode-switching', 'concept-dpas-mode', 'paper-dpas-state-machine', 'part6-interrupt-mode', 'risk-interrupt-submission', 'part7-validation'],
+    cardIds: ['step3-part4-boundary', 'part4-minimal-pas', 'step3-pas-state-duration', 'step3-pas-sleep-update-loop', 'part5-mode-switching', 'concept-dpas-mode', 'paper-dpas-state-machine', 'step3-dpas-interrupt-fops-hook', 'part6-interrupt-mode', 'risk-interrupt-submission', 'part7-validation'],
   },
   {
     id: 'path-common-misconceptions',
     title: '오해 먼저 제거',
     description: 'Step 1에서 반복해서 헷갈린 지점을 먼저 정리합니다.',
-    cardIds: ['concept-bi-cookie-tag', 'mis-submit-vs-poll', 'step2-req-polled-submission', 'step2-dpas-518-comparison', 'mis-cpu-relax-sleep', 'risk-interrupt-submission'],
+    cardIds: ['concept-bi-cookie-tag', 'mis-submit-vs-poll', 'step2-req-polled-submission', 'step3-queue-mapping-foundation', 'step3-dpas-interrupt-fops-hook', 'step2-dpas-518-comparison', 'mis-cpu-relax-sleep', 'risk-interrupt-submission'],
   },
 ];

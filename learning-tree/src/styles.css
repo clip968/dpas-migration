@@ -938,8 +938,8 @@ button {
   display: block;
   height: auto;
   margin: 0 auto;
-  max-width: none;
-  width: auto;
+  max-width: 100%;
+  width: 100%;
 }
 
 .mermaid-error {
