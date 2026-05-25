@@ -11,12 +11,33 @@ export interface EvidenceSource {
   note: string;
 }
 
+export interface LearningCardInputTransformOutput {
+  input: string;
+  transform: string;
+  output: string;
+}
+
+export interface LearningCardVisual {
+  kind: 'mermaid' | 'ascii' | 'table';
+  body: string;
+  caption: string;
+}
+
 export interface CardSections {
+  oneLineConclusion: string;
+  keyQuestion: string;
+  prerequisites: string[];
   plainExplanation: string;
+  inputTransformOutput: LearningCardInputTransformOutput;
+  visual: LearningCardVisual;
+  workedExample: string;
   whyItMatters: string;
   repoContext: string;
   commonConfusions: string[];
+  codeEvidence: string[];
+  checkQuestions: string[];
   nextSteps: string[];
+  sources: string[];
 }
 
 export type VisualTone = 'blue' | 'teal' | 'amber' | 'rose' | 'violet' | 'slate';

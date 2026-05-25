@@ -3,6 +3,8 @@ export type {
   CardStatus,
   EvidenceSource,
   CardSections,
+  LearningCardInputTransformOutput,
+  LearningCardVisual,
   VisualTone,
   VisualFlowStep,
   VisualSlot,

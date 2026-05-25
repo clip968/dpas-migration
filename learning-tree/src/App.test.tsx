@@ -75,4 +75,17 @@ describe('App tree viewport', () => {
     expect(container.querySelector('.card-list')).toBeNull();
     expect(screen.queryByPlaceholderText(/bio/)).toBeNull();
   });
+
+  it('renders the card-writer summary without exposing duplicate internal fields', () => {
+    const { container } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '상세 보기' }));
+
+    expect(screen.queryByRole('heading', { name: '한 줄 결론' })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: '핵심 질문' })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: '입력 -> 변환 -> 출력' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: '핵심 모델' })).not.toBeNull();
+    expect(container.querySelector('.schema-visual pre code')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: '확인 질문' })).not.toBeNull();
+  });
 });

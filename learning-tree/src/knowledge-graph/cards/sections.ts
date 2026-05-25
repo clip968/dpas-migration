@@ -1,4 +1,186 @@
-import type { CardSections } from '../types';
+import type { CardSections, EvidenceSource, LearningCardVisual, VisualModel } from '../types';
+
+type SectionCardContext = {
+  id: string;
+  title: string;
+  shortTitle: string;
+  summary: string;
+  sourcePath: string;
+  visual?: VisualModel;
+};
+
+const DEFAULT_KEY_QUESTION = '이 카드가 DPAS migration에서 어떤 판단을 고정하나요?';
+
+const prerequisiteTerms = [
+  ['REQ_POLLED', 'REQ_POLLED: poll completion 경로를 표시하는 block-layer flag'],
+  ['IOCB_HIPRI', 'IOCB_HIPRI: kernel 내부 kiocb의 HIPRI flag'],
+  ['RWF_HIPRI', 'RWF_HIPRI: userspace가 전달하는 high-priority I/O hint'],
+  ['bi_cookie', 'bi_cookie: poll 대상 hctx를 찾는 bio의 cookie 값'],
+  ['hctx', 'hctx: blk-mq hardware queue context'],
+  ['ctx', 'ctx: submit CPU 쪽 software queue context'],
+  ['request', 'request: blk-mq가 driver에 제출하는 I/O 단위'],
+  ['bio', 'bio: block layer로 들어오는 I/O 기본 단위'],
+  ['blk-mq', 'blk-mq: Linux block multi-queue layer'],
+  ['mq_ops', 'mq_ops: block layer가 driver를 부르는 callback table'],
+  ['io_uring', 'io_uring: userspace asynchronous I/O interface'],
+  ['NVMe', 'NVMe: poll/interrupt queue를 제공하는 storage driver 대상'],
+  ['PAS', 'PAS: busy poll 전에 sleep을 넣어 CPU 비용을 줄이는 정책'],
+  ['DPAS', 'DPAS: workload에 따라 polling policy를 바꾸는 adaptive 정책'],
+  ['FIO', 'FIO: latency/CPU/IOPS를 확인하는 benchmark 도구'],
+] as const;
+
+function firstSentence(text: string) {
+  return text.trim().match(/^[^.!?\n。]+[.!?。]?/)?.[0].trim() ?? text.trim();
+}
+
+function ensureQuestion(text: string) {
+  const withoutEnding = text.trim().replace(/[?？.。!！]+$/g, '');
+  return `${withoutEnding}?`;
+}
+
+function ensureCaption(text: string) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('이 그림에서 봐야 할 것:')) return trimmed;
+  return `이 그림에서 봐야 할 것: ${trimmed}`;
+}
+
+function ensureAtLeastTwo(items: string[], firstFallback: string, secondFallback: string) {
+  const cleaned = items.map((item) => item.trim()).filter(Boolean);
+  if (cleaned.length === 0) return [firstFallback, secondFallback];
+  if (cleaned.length === 1) return [cleaned[0], secondFallback];
+  return cleaned;
+}
+
+function inferPrerequisites(text: string) {
+  return prerequisiteTerms
+    .filter(([term]) => text.includes(term))
+    .map(([, explanation]) => explanation)
+    .slice(0, 3);
+}
+
+function fallbackCoreVisual(input: string, transform: string, output: string): LearningCardVisual {
+  return {
+    kind: 'ascii',
+    body: [
+      '핵심 전제',
+      `  ${input}`,
+      '',
+      '읽을 근거',
+      `  ${transform}`,
+      '',
+      'DPAS 판단',
+      `  ${output}`,
+    ].join('\n'),
+    caption: '이 그림에서 봐야 할 것: 왼쪽으로 밀지 않고 위에서 아래로 읽으면서 입력이 어떤 설명을 거쳐 DPAS 판단으로 바뀌는지입니다.',
+  };
+}
+
+function buildFlowVisual(visual: VisualModel) {
+  const lines = [visual.title, '', visual.description, '', '순서'];
+  visual.flowSteps?.forEach((step, index) => {
+    lines.push(`${index + 1}. ${step.title}`);
+    lines.push(`   ${step.description}`);
+  });
+  return lines.join('\n');
+}
+
+function buildSlotGroupVisual(visual: VisualModel) {
+  const lines = [visual.title, '', visual.description];
+  visual.slotGroups?.forEach((group) => {
+    lines.push('');
+    lines.push(group.title);
+    lines.push(`  ${group.description}`);
+    group.slots.forEach((slot) => {
+      lines.push(`  - ${slot.label}: ${slot.description}`);
+    });
+  });
+  return lines.join('\n');
+}
+
+function buildMetricTableVisual(visual: VisualModel) {
+  const table = visual.metricTable;
+  if (!table) return '';
+  const lines = [table.title, '', table.description ?? visual.description];
+  table.rows.forEach((row) => {
+    lines.push('');
+    lines.push(row.label);
+    row.cells.forEach((cell, index) => {
+      lines.push(`  ${table.columns[index] ?? `값 ${index + 1}`}: ${cell}`);
+    });
+  });
+  return lines.join('\n');
+}
+
+function buildComparisonVisual(visual: VisualModel) {
+  const comparison = visual.comparison;
+  if (!comparison) return '';
+  const lines = [comparison.title, '', comparison.description ?? visual.description];
+  comparison.rows.forEach((row) => {
+    lines.push('');
+    lines.push(row.label);
+    lines.push(`  ${comparison.leftLabel}: ${row.left}`);
+    lines.push(`  ${comparison.rightLabel}: ${row.right}`);
+  });
+  return lines.join('\n');
+}
+
+function buildTimelineVisual(visual: VisualModel) {
+  const timeline = visual.timeline;
+  if (!timeline) return '';
+  const lines = [timeline.title, '', timeline.description ?? visual.description];
+  timeline.rows.forEach((row) => {
+    lines.push('');
+    lines.push(row.label);
+    if (row.description) lines.push(`  ${row.description}`);
+    row.segments.forEach((segment) => {
+      lines.push(`  - ${segment.label}: ${segment.duration}`);
+    });
+  });
+  return lines.join('\n');
+}
+
+function buildAsciiVisual(visual: VisualModel) {
+  const art = visual.asciiArts?.[0];
+  if (!art) return '';
+  return [
+    art.title,
+    '',
+    art.caption ?? visual.description,
+    ...visual.notes.map((note) => `- ${note}`),
+  ].join('\n');
+}
+
+function buildMermaidSummaryVisual(visual: VisualModel) {
+  if (!visual.mermaid) return '';
+  return [
+    visual.mermaid.title,
+    '',
+    visual.mermaid.description ?? visual.description,
+    ...visual.notes.map((note) => `- ${note}`),
+  ].join('\n');
+}
+
+function visualFromTeachingModel(visual: VisualModel | undefined, fallback: LearningCardVisual): LearningCardVisual {
+  if (!visual) return fallback;
+  const body =
+    (visual.flowSteps?.length ? buildFlowVisual(visual) : '') ||
+    (visual.slotGroups?.length ? buildSlotGroupVisual(visual) : '') ||
+    (visual.metricTable ? buildMetricTableVisual(visual) : '') ||
+    (visual.comparison ? buildComparisonVisual(visual) : '') ||
+    (visual.timeline ? buildTimelineVisual(visual) : '') ||
+    (visual.asciiArts?.length ? buildAsciiVisual(visual) : '') ||
+    (visual.mermaid ? buildMermaidSummaryVisual(visual) : '');
+
+  return {
+    kind: 'ascii',
+    body: body || fallback.body,
+    caption: ensureCaption(visual.description || fallback.caption),
+  };
+}
+
+function sourceLine(source: EvidenceSource) {
+  return `${source.label} (${source.path}): ${source.note}`;
+}
 
 export function sections(
   plainExplanation: string,
@@ -7,7 +189,91 @@ export function sections(
   commonConfusions: string[],
   nextSteps: string[],
 ): CardSections {
-  return { plainExplanation, whyItMatters, repoContext, commonConfusions, nextSteps };
+  const plainLead = firstSentence(plainExplanation);
+  const whyLead = firstSentence(whyItMatters);
+  const contextLead = firstSentence(repoContext);
+  const allText = [plainExplanation, whyItMatters, repoContext, commonConfusions.join(' '), nextSteps.join(' ')].join(' ');
+
+  return {
+    oneLineConclusion: plainLead,
+    keyQuestion: DEFAULT_KEY_QUESTION,
+    prerequisites: inferPrerequisites(allText),
+    plainExplanation,
+    inputTransformOutput: {
+      input: plainLead,
+      transform: contextLead,
+      output: whyLead,
+    },
+    visual: fallbackCoreVisual(plainLead, contextLead, whyLead),
+    workedExample: `예: ${plainLead} 이 관점으로 보면 ${whyLead}`,
+    whyItMatters,
+    repoContext,
+    commonConfusions: ensureAtLeastTwo(
+      commonConfusions,
+      '논문 용어와 kernel 함수 이름을 1:1로 바로 대응시키면 안 됩니다.',
+      'Part 번호만 따라가면 실제 object/flag/function 관계를 놓치기 쉽습니다.',
+    ),
+    codeEvidence: [
+      `근거 필요: ${contextLead}`,
+      '근거 필요: 다음 보강 때 kernel source 또는 Notion child page의 함수/라인 근거를 더 좁혀야 합니다.',
+    ],
+    checkQuestions: [
+      '이 카드의 핵심 판단을 한 문장으로 설명할 수 있나요?',
+      '이 카드가 DPAS hook/state/mode/validation 중 어느 판단에 쓰이는지 설명할 수 있나요?',
+    ],
+    nextSteps: ensureAtLeastTwo(
+      nextSteps,
+      '연결된 코드 흐름 카드를 확인합니다.',
+      '관련 Notion Part와 local kernel source를 대조합니다.',
+    ),
+    sources: [
+      '근거 필요: graphCards 생성 단계에서 card.sourceKeys를 sections.sources로 채워야 합니다.',
+      '근거 필요: local card source path를 sections.sources로 채워야 합니다.',
+    ],
+  };
+}
+
+export function completeSectionsForCard(card: SectionCardContext, base: CardSections, sources: EvidenceSource[]): CardSections {
+  const allText = [card.title, card.shortTitle, card.summary, base.plainExplanation, base.whyItMatters, base.repoContext].join(' ');
+  const inputTransformOutput = {
+    input: `입력: ${firstSentence(card.summary)}`,
+    transform: `변환: ${firstSentence(base.plainExplanation)}`,
+    output: `출력: ${firstSentence(base.whyItMatters)}`,
+  };
+  const sourceLines = sources.map(sourceLine);
+  const sectionSources = ensureAtLeastTwo(
+    [...sourceLines, `${card.sourcePath}: local card draft and expanded section data for ${card.id}`],
+    `${card.sourcePath}: local card draft and expanded section data for ${card.id}`,
+    '근거 필요: 이 카드의 외부/코드 근거를 추가해야 합니다.',
+  );
+  const codeEvidence = ensureAtLeastTwo(
+    [
+      ...sourceLines,
+      `${card.sourcePath}: ${firstSentence(base.repoContext)}`,
+    ],
+    `${card.sourcePath}: ${firstSentence(base.repoContext)}`,
+    '근거 필요: line-level kernel evidence를 다음 카드 보강 때 추가해야 합니다.',
+  );
+  const shortTitle = card.shortTitle || card.title;
+
+  return {
+    ...base,
+    oneLineConclusion: firstSentence(card.summary),
+    keyQuestion: ensureQuestion(`${shortTitle}가 DPAS migration에서 어떤 판단 근거가 되나요`),
+    prerequisites: inferPrerequisites(allText),
+    inputTransformOutput,
+    visual: visualFromTeachingModel(
+      card.visual,
+      fallbackCoreVisual(inputTransformOutput.input, inputTransformOutput.transform, inputTransformOutput.output),
+    ),
+    workedExample: `${shortTitle}을 적용하면 먼저 "${firstSentence(card.summary)}"를 확인하고, 그 근거로 "${firstSentence(base.whyItMatters)}" 판단을 내립니다.`,
+    codeEvidence,
+    checkQuestions: [
+      `${shortTitle}의 핵심 질문에 한 문장으로 답하면 무엇인가요?`,
+      `${shortTitle}가 DPAS hook/state/mode/validation 판단 중 어디에 영향을 주나요?`,
+    ],
+    sources: sectionSources,
+  };
 }
 
 export const expandedSections: Partial<Record<string, CardSections>> = {

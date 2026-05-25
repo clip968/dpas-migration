@@ -1,6 +1,6 @@
 import type { GraphCard } from '../types';
 import { evidenceSources } from './evidence';
-import { expandedSections, sections } from './sections';
+import { completeSectionsForCard, expandedSections, sections } from './sections';
 import type { CardDraft } from './types';
 import {
   dpasPolicyCards,
@@ -36,7 +36,20 @@ export const graphCards: GraphCard[] = draftCards.map((card) => {
     '논문 용어와 kernel 함수 이름은 1:1로 바로 대응되지 않습니다.',
   ];
   const nextSteps = expanded?.nextSteps ?? card.next ?? ['연결된 코드 흐름 카드를 확인합니다.', '관련 Notion Part와 local kernel source를 대조합니다.'];
-  const cardSections = expanded ?? sections(card.plain, card.why, card.context, commonConfusions, nextSteps);
+  const sourcePath = card.sourcePath ?? `src/knowledge-graph/cards/drafts/${card.community}.ts#${card.id}`;
+  const baseSections = expanded ?? sections(card.plain, card.why, card.context, commonConfusions, nextSteps);
+  const cardSections = completeSectionsForCard(
+    {
+      id: card.id,
+      title: card.title,
+      shortTitle: card.shortTitle,
+      summary: card.summary,
+      sourcePath,
+      visual: card.visual,
+    },
+    baseSections,
+    sources,
+  );
 
   return {
     id: card.id,
@@ -46,10 +59,10 @@ export const graphCards: GraphCard[] = draftCards.map((card) => {
     title: card.title,
     shortTitle: card.shortTitle,
     summary: card.summary,
-    details: [cardSections.plainExplanation, cardSections.whyItMatters, cardSections.repoContext],
+    details: [cardSections.oneLineConclusion, cardSections.plainExplanation, cardSections.whyItMatters, cardSections.repoContext],
     sections: cardSections,
     visual: card.visual,
-    sourcePath: card.sourcePath ?? `src/knowledge-graph/cards/drafts/${card.community}.ts#${card.id}`,
+    sourcePath,
     sources,
     position: card.position,
   };

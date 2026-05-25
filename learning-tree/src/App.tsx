@@ -299,6 +299,19 @@ function MermaidDiagram({ code }: { code: string }) {
   return <div ref={containerRef} className="mermaid-host" />;
 }
 
+function LearningCardVisualPanel({ visual }: { visual: GraphCard['sections']['visual'] }) {
+  return (
+    <div className={`schema-visual schema-visual-${visual.kind}`}>
+      {visual.kind === 'mermaid' ? (
+        <MermaidDiagram code={visual.body} />
+      ) : (
+        <pre><code>{visual.body}</code></pre>
+      )}
+      <small>{visual.caption}</small>
+    </div>
+  );
+}
+
 function VisualModelPanel({ visual }: { visual: VisualModel }) {
   return (
     <div className="visual-panel">
@@ -650,13 +663,35 @@ export function App() {
 
               <div className="modal-content">
                 <div className="modal-main">
+                  <section className="detail-section detail-section-emphasis">
+                    <h3>한 줄 결론</h3>
+                    <p>{selected.sections.oneLineConclusion}</p>
+                  </section>
+                  <section className="detail-section detail-section-emphasis">
+                    <h3>핵심 질문</h3>
+                    <p>{selected.sections.keyQuestion}</p>
+                  </section>
+                  {selected.sections.prerequisites.length > 0 ? (
+                    <section className="detail-section">
+                      <h3>먼저 알면 좋은 말</h3>
+                      <ul className="prerequisite-list">{selected.sections.prerequisites.map((item) => <li key={item}>{item}</li>)}</ul>
+                    </section>
+                  ) : null}
                   <section className="detail-section">
                     <h3>이게 뭔가요?</h3>
                     <p>{selected.sections.plainExplanation}</p>
                   </section>
+                  <section className="detail-section">
+                    <h3>핵심 모델</h3>
+                    <LearningCardVisualPanel visual={selected.sections.visual} />
+                  </section>
+                  <section className="detail-section">
+                    <h3>짧은 예시</h3>
+                    <p>{selected.sections.workedExample}</p>
+                  </section>
                   {selected.visual ? (
                     <section className="detail-section">
-                      <h3>시각 모델</h3>
+                      <h3>확장 시각 모델</h3>
                       <VisualModelPanel visual={selected.visual} />
                     </section>
                   ) : null}
@@ -671,6 +706,14 @@ export function App() {
                   <section className="detail-section">
                     <h3>헷갈리기 쉬운 지점</h3>
                     <ul>{selected.sections.commonConfusions.map((detail) => <li key={detail}>{detail}</li>)}</ul>
+                  </section>
+                  <section className="detail-section">
+                    <h3>코드/근거 확인</h3>
+                    <ul>{selected.sections.codeEvidence.map((detail) => <li key={detail}>{detail}</li>)}</ul>
+                  </section>
+                  <section className="detail-section">
+                    <h3>확인 질문</h3>
+                    <ul>{selected.sections.checkQuestions.map((question) => <li key={question}>{question}</li>)}</ul>
                   </section>
                   <section className="detail-section">
                     <h3>다음에 볼 것</h3>

@@ -599,6 +599,76 @@ button {
   padding-left: 20px;
 }
 
+.detail-modal-kami .detail-section-emphasis {
+  background: var(--kami-ivory);
+  border: 1px solid var(--kami-border);
+  padding: 16px;
+}
+
+.detail-modal-kami .detail-section-emphasis h3 {
+  border-left-color: var(--kami-amber);
+}
+
+.detail-modal-kami .prerequisite-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  list-style: none;
+  padding-left: 0;
+}
+
+.detail-modal-kami .prerequisite-list li {
+  background: var(--kami-ivory);
+  border: 1px solid var(--kami-border-soft);
+  padding: 10px 12px;
+}
+
+.detail-modal-kami .schema-visual {
+  background: #202220;
+  border: 1px solid #343830;
+  display: grid;
+  gap: 10px;
+  padding: 0;
+}
+
+.detail-modal-kami .schema-visual pre {
+  background: transparent;
+  color: #f4efe3;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-modal-kami .schema-visual code {
+  font-family: inherit;
+}
+
+.detail-modal-kami .schema-visual small {
+  background: #f7f3e8;
+  border-top: 1px solid #343830;
+  color: var(--kami-dark-warm);
+  line-height: 1.5;
+  padding: 10px 14px;
+}
+
+.detail-modal-kami .schema-visual .mermaid-host {
+  background: #fffdf8;
+  border: 1px solid var(--kami-border-soft);
+  max-width: 100%;
+  overflow: visible;
+  padding: 12px;
+}
+
+.detail-modal-kami .schema-visual .mermaid-host svg {
+  height: auto;
+  max-width: 100%;
+  width: 100%;
+}
+
 .detail-modal-kami .visual-panel,
 .detail-modal-kami .source-item,
 .detail-modal-kami .candidate-item {
