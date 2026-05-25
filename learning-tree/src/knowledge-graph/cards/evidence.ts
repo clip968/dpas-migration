@@ -46,6 +46,15 @@ export const evidenceSources = {
     commitTitle: 'Step 3 - Queue Mapping + DPAS 5.18 Hook 추출 노트',
     note: '최신 HCTX_TYPE_POLL/NVMe poll queue foundation과 DPAS 5.18의 PAS state, sleep-before-poll, result update, fops.c interrupt hook을 분리한 노트입니다.',
   },
+  notionStep4: {
+    id: 'src-notion-step4-diff-hook-state',
+    label: 'Notion Part 3 Step 4 - Diff, hook, and state decision note',
+    path: 'Dpas-migration Part 3 / 2026-05-25 Step 4',
+    commitHash: 'notion-2026-05-25-step4',
+    commitDate: '2026-05-25',
+    commitTitle: 'Step 4 - Diff 분석 + Hook/State 결정 노트',
+    note: '최신 kernel로 DPAS를 옮기기 전 request_queue state placement, poll hook 후보, sysfs/lifecycle 순서를 정리한 노트입니다.',
+  },
   notionPart2: {
     id: 'src-notion-part2-paper-model',
     label: 'Notion Part 2 - DPAS paper model',

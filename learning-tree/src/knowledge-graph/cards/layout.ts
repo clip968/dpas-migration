@@ -55,6 +55,16 @@ const communityLayouts: CommunityLayout[] = [
     rows: 3,
   },
   {
+    id: 'step4-diff-decision',
+    title: 'Step 4: diff, state, and hook decision',
+    shortTitle: 'Step 4',
+    description: '최신 kernel에 DPAS를 옮기기 전 state 위치, poll hook, sysfs lifecycle을 결정합니다.',
+    tone: 'amber',
+    position: { x: -3020, y: 170 },
+    columns: 4,
+    rows: 2,
+  },
+  {
     id: 'step1-polling',
     title: 'Step 1: completion polling path',
     shortTitle: 'Step 1',

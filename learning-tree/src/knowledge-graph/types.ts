@@ -48,6 +48,7 @@ export type CommunityId =
   | 'step1-polling'
   | 'step2-submission'
   | 'step3-queue-hooks'
+  | 'step4-diff-decision'
   | 'dpas-policy'
   | 'misconceptions'
   | 'validation';
