@@ -19,6 +19,12 @@ After any code modification, Codex must clearly report:
 - What verification was run and what the result was.
 - A recap of the next work that should be done after this change.
 
+## Notion Page Updates
+
+- When creating a new child page under a Notion parent page, add or move the child page link near the top of the parent page, following the Part 3 style.
+- Do not leave newly created child page links only at the bottom of long parent pages.
+- If the Notion API appends the child page link at the bottom automatically, update the parent page afterward so the new child page is surfaced at the top.
+
 <!-- serena -->
 Use Serena MCP for semantic code navigation and symbol-level code edits when it improves accuracy or context efficiency. Do not use Serena automatically for every task.
 
