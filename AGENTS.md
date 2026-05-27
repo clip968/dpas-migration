@@ -25,6 +25,15 @@ After any code modification, Codex must clearly report:
 - Do not leave newly created child page links only at the bottom of long parent pages.
 - If the Notion API appends the child page link at the bottom automatically, update the parent page afterward so the new child page is surfaced at the top.
 
+## Daily History Dashboard
+
+- DPAS 공부/작업 현황판은 `history/YYYY-MM-DD.md`에 한국어로 작성한다.
+- 모든 진행 내용을 하나의 큰 파일에 누적하지 않는다. 날짜가 바뀌면 새 일일 파일을 만든다.
+- DPAS 공부 또는 구현 세션을 시작할 때 오늘 날짜의 `history/YYYY-MM-DD.md`가 있는지 확인한다. 없으면 전날의 미해결 질문, 남은 리스크, 다음 작업만 짧게 가져와 새로 만든다.
+- 일일 현황판은 공부 흐름 복구가 목적이다. 현재 위치, 공부한 개념, 사용자 질문, 결정사항, 중요한 코드 위치, 헷갈리는 점, 남은 리스크, 다음에 볼 것을 중심으로 적는다.
+- 일일 현황판을 테스트 명령어, 빌드 로그, 긴 터미널 출력으로 채우지 않는다. 검증 상태는 다음 공부/작업 방향을 바꿀 때만 짧게 언급한다.
+- 의미 있는 작업이 끝나면 오늘 날짜 파일만 갱신한다. 다음 날에는 미해결 질문과 다음 작업만 이어받는다.
+
 <!-- serena -->
 Use Serena MCP for semantic code navigation and symbol-level code edits when it improves accuracy or context efficiency. Do not use Serena automatically for every task.
 
