@@ -74,3 +74,5 @@ kernel/scripts/kconfig/lexer.lex.c
 kernel/scripts/kconfig/parser.tab.c
 kernel/scripts/kconfig/parser.tab.h
 kernel/scripts/mod/devicetable-offsets.s
+
+build
