@@ -8,6 +8,8 @@ TESTDIR="${DPAS_TESTDIR:-${MNT}/dpas-host-test}"
 LOG_ROOT="${DPAS_LOG_ROOT:-/tmp/dpas-host-postboot}"
 RUNTIME="${DPAS_RUNTIME:-30}"
 RAMP_TIME="${DPAS_RAMP_TIME:-3}"
+WARMUP_RUNTIME="${DPAS_WARMUP_RUNTIME:-0}"
+WARMUP_RAMP_TIME="${DPAS_WARMUP_RAMP_TIME:-${RAMP_TIME}}"
 REPEATS="${DPAS_REPEATS:-5}"
 JOBS="${DPAS_JOBS:-1}"
 PREFILL_SIZE="${DPAS_PREFILL_SIZE:-100m}"
@@ -80,6 +82,9 @@ ln -sfn "${OUT}" "${LOG_ROOT}/host-repeat-latest"
 MODE_COUNT="$(wc -w <<< "${MODES}")"
 JOB_COUNT="$(wc -w <<< "${JOBS}")"
 EST_SECONDS=$(( REPEATS * MODE_COUNT * JOB_COUNT * (RUNTIME + RAMP_TIME) ))
+if (( WARMUP_RUNTIME > 0 )); then
+  EST_SECONDS=$(( EST_SECONDS + REPEATS * MODE_COUNT * JOB_COUNT * (WARMUP_RUNTIME + WARMUP_RAMP_TIME) ))
+fi
 
 echo "== DPAS host Optane repeat test =="
 echo "log: ${OUT}"
@@ -92,6 +97,7 @@ echo "modes: ${MODES}"
 echo "jobs: ${JOBS}"
 echo "repeats: ${REPEATS}"
 echo "runtime/ramp: ${RUNTIME}s/${RAMP_TIME}s"
+echo "warmup runtime/ramp: ${WARMUP_RUNTIME}s/${WARMUP_RAMP_TIME}s"
 echo "estimated fio wall time: ~${EST_SECONDS}s"
 echo
 
@@ -105,6 +111,8 @@ echo
   echo "repeats=${REPEATS}"
   echo "runtime=${RUNTIME}"
   echo "ramp_time=${RAMP_TIME}"
+  echo "warmup_runtime=${WARMUP_RUNTIME}"
+  echo "warmup_ramp_time=${WARMUP_RAMP_TIME}"
 } | tee "${OUT}/00-basic.txt"
 
 lsblk -o NAME,TYPE,SIZE,FSTYPE,UUID,PARTUUID,MOUNTPOINTS,MODEL "/dev/${DEV}" \
@@ -329,6 +337,19 @@ for repeat in $(seq 1 "${REPEATS}"); do
       hipri=()
       if [[ "${mode}" != "INT" ]]; then
         hipri=(--hipri)
+      fi
+
+      if (( WARMUP_RUNTIME > 0 )); then
+        warmup_json="${mode_dir}/warmup.json"
+        fio --directory="${TESTDIR}" --filename_format='testfile.$jobnum' \
+          --direct=1 --readonly --rw=randread --bs=4k --ioengine=pvsync2 \
+          --iodepth=1 --runtime="${WARMUP_RUNTIME}" --ramp_time="${WARMUP_RAMP_TIME}" \
+          --numjobs="${jobs}" --time_based --group_reporting --name=warmup \
+          --eta-newline=1 "${hipri[@]}" \
+          --output-format=json --output="${warmup_json}"
+
+        python3 -m json.tool "${warmup_json}" > "${mode_dir}/warmup.pretty.json"
+        echo 3 > /proc/sys/vm/drop_caches
       fi
 
       json="${mode_dir}/fio.json"
