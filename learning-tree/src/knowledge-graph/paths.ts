@@ -5,7 +5,13 @@ export const learningPaths: LearningPath[] = [
     id: 'path-migration-roadmap',
     title: 'Dpas-migration 전체 흐름',
     description: 'Notion index의 Part 1-9를 구현 순서가 아니라 이해 의존성 순서로 훑습니다.',
-    cardIds: ['repo-overview', 'part1-build-boot-loop', 'kernel-io-completion-model', 'path-submit-polled', 'step2-req-polled-submission', 'step2-flag-propagation', 'step3-overview', 'step3-queue-mapping-foundation', 'step3-dpas-518-hook-inventory', 'step3-part4-boundary', 'step4-overview', 'step4-state-placement', 'step4-poll-hook-candidates', 'step4-open-questions', 'path-poll-completion', 'part4-minimal-pas', 'concept-dpas-mode', 'risk-interrupt-submission', 'part7-validation'],
+    cardIds: ['repo-overview', 'part1-build-boot-loop', 'kernel-io-completion-model', 'path-submit-polled', 'step2-req-polled-submission', 'step2-flag-propagation', 'step3-overview', 'step3-queue-mapping-foundation', 'step3-dpas-518-hook-inventory', 'step3-part4-boundary', 'step4-overview', 'step4-state-placement', 'dpas-71-mode-switching-direct-fields', 'dpas-71-submit-helper', 'step4-poll-hook-candidates', 'step4-open-questions', 'path-poll-completion', 'part4-minimal-pas', 'concept-dpas-mode', 'risk-interrupt-submission', 'part7-validation', 'validation-full-mode-static-test', 'validation-colima-build-loop'],
+  },
+  {
+    id: 'path-current-code-changes',
+    title: '현재 코드 변경 따라가기',
+    description: '최근 history에 맞춰 실제로 바뀐 dpas-kernel 코드와 검증 증거만 빠르게 따라갑니다.',
+    cardIds: ['repo-overview', 'step4-overview', 'step4-state-placement', 'dpas-71-mode-switching-direct-fields', 'step4-sysfs-lifecycle', 'dpas-71-submit-helper', 'validation-full-mode-static-test', 'validation-colima-build-loop', 'validation-optane-knob-reset', 'step4-open-questions'],
   },
   {
     id: 'path-kernel-first',
@@ -34,8 +40,8 @@ export const learningPaths: LearningPath[] = [
   {
     id: 'path-step4-diff-decision',
     title: 'Step 4: diff 분석과 hook/state 결정',
-    description: 'Part 4에서 손으로 patch를 쓰기 전에 request_queue state, poll hook 후보, sysfs lifecycle, ctx/hctx map을 한 번에 고정합니다.',
-    cardIds: ['step4-overview', 'step4-state-placement', 'step4-poll-hook-candidates', 'step4-sysfs-lifecycle', 'step4-queue-lifecycle', 'step4-request-queue-model', 'step4-hctx-type-init-map', 'step4-open-questions'],
+    description: '예전 구현 전 결정 카드에서 현재 request_queue direct-field 코드와 검증 질문까지 이어 봅니다.',
+    cardIds: ['step4-overview', 'step4-state-placement', 'dpas-71-mode-switching-direct-fields', 'step4-sysfs-lifecycle', 'step4-queue-lifecycle', 'step4-poll-hook-candidates', 'step4-request-queue-model', 'step4-hctx-type-init-map', 'step4-open-questions'],
   },
   {
     id: 'path-paper-to-kernel-hook',
@@ -47,7 +53,7 @@ export const learningPaths: LearningPath[] = [
     id: 'path-migration-minimal-to-full',
     title: 'Minimal PAS에서 full DPAS',
     description: 'PAS-only 이후 mode switching과 interrupt risk를 분리해서 봅니다.',
-    cardIds: ['step3-part4-boundary', 'step4-overview', 'step4-state-placement', 'step4-sysfs-lifecycle', 'part4-minimal-pas', 'step3-pas-state-duration', 'step3-pas-sleep-update-loop', 'part5-mode-switching', 'concept-dpas-mode', 'paper-dpas-state-machine', 'step3-dpas-interrupt-fops-hook', 'part6-interrupt-mode', 'risk-interrupt-submission', 'part7-validation'],
+    cardIds: ['step3-part4-boundary', 'step4-overview', 'step4-state-placement', 'dpas-71-mode-switching-direct-fields', 'step4-sysfs-lifecycle', 'part4-minimal-pas', 'step3-pas-state-duration', 'step3-pas-sleep-update-loop', 'part5-mode-switching', 'concept-dpas-mode', 'paper-dpas-state-machine', 'dpas-71-submit-helper', 'step3-dpas-interrupt-fops-hook', 'part6-interrupt-mode', 'risk-interrupt-submission', 'part7-validation', 'validation-full-mode-static-test'],
   },
   {
     id: 'path-common-misconceptions',

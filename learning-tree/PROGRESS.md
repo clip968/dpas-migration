@@ -1,40 +1,50 @@
 # DPAS Migration Learning Tree 진행 상황
 
-작성일: 2026-05-23
+작성일: 2026-06-17
 
 ## 한 줄 요약
 
-기존 `learning-tree` 구조를 바탕으로 DPAS migration을 이해하기 위한 kernel-first 학습지도를 `/home/clip968/DPAS_FAST26/learning-tree`에 배치했습니다.
+`history/`의 최신 코드 변경 흐름에 맞춰 learning tree를 kernel-first v0에서 **current code-change map**으로 보강했습니다.
 
 ## 현재 목표
 
 ```text
-DPAS 논문과 Notion migration notes를 바로 구현 단계로 외우지 않고,
-먼저 kernel 객체와 경로를 이해한 뒤 PAS/DPAS hook 위치와 검증 계획으로 넘어가는 학습 지도 만들기.
+이미 구현된 dpas-kernel 변경을 직관적으로 복구할 수 있게 만든다.
+어려운 state machine 설명보다 "어느 파일이 어떤 책임을 맡는가"를 먼저 보여 준다.
 ```
 
-현재 v0는 Step 1에서 계속 헷갈렸던 blk-mq polling path를 중심으로 잡았습니다.
+이번 sync의 중심:
 
-핵심 기준:
-
-- kernel 용어 먼저: `bio`, `request`, `hctx`, `REQ_POLLED`, `bi_cookie`, `tag`
-- 코드 흐름 다음: submit 시점에서 cookie가 생기고, poll 시점에서 cookie로 hctx를 다시 찾는 구조
-- migration은 그 다음: PAS sleep-before-poll hook, DPAS mode switching, interrupt-mode risk
-- 검증은 마지막: FIO로 mode별 latency/CPU/IOPS 차이를 확인
+- `request_queue` direct DPAS fields
+- `blk_dpas_prepare_bio()` submit-time gate
+- `switch_enabled` sysfs reset window
+- `blk_dpas_maybe_switch_mode()` poll-time transition
+- `full_mode_switching_static.py` 구조 검증
+- Optane mode별 sysfs knob reset 보정
+- Colima/Docker 기반 `bzImage` 빌드 루프
 
 ## 반영된 파일
 
-- `src/knowledge-graph/cards.ts`: DPAS/blk-mq/NVMe polling 중심 카드 v0
-- `src/knowledge-graph/edges.ts`: kernel 객체, 코드 경로, 논문 대응, migration risk 관계
-- `src/knowledge-graph/types.ts`: DPAS용 edge kind 확장
-- `src/knowledge-graph/labels.ts`: 관계 필터 label/설명 확장
-- `src/knowledge-graph/paths.ts`: kernel-first 학습 경로 재구성
-- `src/knowledge-graph/updates.ts`: DPAS용 update candidate reset
-- `src/App.tsx`: 앱 제목/검색 placeholder/관계 class 매핑 DPAS 기준으로 정리
-- `README.md`: repo 목적을 DPAS Migration Learning Tree로 재작성
-- `current/active-task.md`: 현재 작업 상태를 DPAS 기준으로 갱신
-- `raw-index/source-map.md`: Notion Part 1-9와 local kernel source 후보 맵 정리
+- `src/knowledge-graph/cards/drafts/dpas-policy.ts`: 실제 7.1 submit helper와 direct-field mode switching 카드 추가.
+- `src/knowledge-graph/cards/drafts/step4-diff-decision.ts`: stale state-placement 계획을 현재 direct-field 구현 설명으로 교체.
+- `src/knowledge-graph/cards/drafts/validation.ts`: static test, Optane knob reset, Colima build loop 카드 추가.
+- `src/knowledge-graph/cards/visuals/dpas.ts`: 최신 코드 변경을 ASCII 흐름도로 설명하는 visual 추가.
+- `src/knowledge-graph/cards/visuals/step4.ts`: Step 4 visual을 현재 코드 상태 기준으로 갱신.
+- `src/knowledge-graph/cards/evidence.ts`: 2026-06-12/13/15/17 history source 추가.
+- `src/knowledge-graph/edges.ts`: 새 카드들을 direct-field, submit helper, validation, runtime gap 흐름에 연결.
+- `src/knowledge-graph/paths.ts`: `현재 코드 변경 따라가기` learning path 추가.
+- `src/knowledge-graph/updates.ts`: 다음 후보를 VM boot/runtime sysfs/HIPRI evidence 중심으로 갱신.
+- `src/knowledge-graph/graph-data.test.ts`: 최신 카드 존재와 stale Step 4 설명 제거를 검증하는 테스트 추가.
 
 ## 아직 검증하지 못한 것
 
-`npm install`과 `npm run build`는 아직 실행하지 않았습니다. 의존성 설치에는 네트워크가 필요할 수 있습니다.
+현재 `learning-tree/node_modules`가 없어 `npm test`는 `vitest: command not found`에서 멈췄습니다.
+
+필요한 확인:
+
+```bash
+cd learning-tree
+npm install
+npm test
+npm run build
+```

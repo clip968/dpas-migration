@@ -1,0 +1,51 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+HOMEBREW_BIN="/opt/homebrew/bin"
+COLIMA="${HOMEBREW_BIN}/colima"
+
+export PATH="${HOMEBREW_BIN}:/opt/homebrew/sbin:${PATH}"
+
+usage() {
+	printf 'Usage: ./vm {start|stop|status|ssh}\n' >&2
+}
+
+if [ ! -x "$COLIMA" ]; then
+	printf 'error: colima not found at %s\n' "$COLIMA" >&2
+	printf 'hint: install it with: /opt/homebrew/bin/brew install colima docker\n' >&2
+	exit 127
+fi
+
+case "${1:-}" in
+start)
+	exec "$COLIMA" start \
+		--cpu 4 \
+		--memory 8 \
+		--disk 80 \
+		--mount "${SCRIPT_DIR}:w"
+	;;
+stop)
+	exec "$COLIMA" stop
+	;;
+status)
+	exec "$COLIMA" status --verbose
+	;;
+ssh)
+	shift
+	if ! "$COLIMA" status >/dev/null 2>&1; then
+		printf 'error: colima is not running\n' >&2
+		printf 'hint: run ./vm start first\n' >&2
+		exit 1
+	fi
+	exec "$COLIMA" ssh "$@"
+	;;
+""|-h|--help|help)
+	usage
+	exit 0
+	;;
+*)
+	usage
+	exit 2
+	;;
+esac

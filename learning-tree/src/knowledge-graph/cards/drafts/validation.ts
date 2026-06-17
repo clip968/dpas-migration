@@ -1,6 +1,6 @@
 import type { CardDraft } from '../types';
 import { communitySlot } from '../layout';
-import { part7Visual } from '../visuals';
+import { colimaBuildLoopVisual, fullModeStaticTestVisual, optaneKnobResetVisual, part7Visual } from '../visuals';
 
 export const validationCards: CardDraft[] = [
   {
@@ -17,5 +17,66 @@ export const validationCards: CardDraft[] = [
     plain: 'Part 7은 구현이 맞는지 성능과 mode counter로 확인하는 검증 계획입니다.',
     why: 'DPAS는 정책 연구이므로 코드가 동작하는 것만으로는 충분하지 않습니다.',
     context: 'FIO microbenchmark, latency percentile, CPU 사용량, mode counter가 필요합니다.',
+  },
+  {
+    id: 'validation-full-mode-static-test',
+    kind: '사건',
+    status: '확정',
+    community: 'validation',
+    title: 'Full mode switching static test',
+    shortTitle: 'static test',
+    summary: '기존 partial PAS guard들을 대체하고 현재 request_queue direct-field full DPAS 구조를 검증하는 정적 테스트입니다.',
+    position: communitySlot('validation', 1, 0),
+    sourceKeys: ['history20260615', 'localKernel'],
+    visual: fullModeStaticTestVisual,
+    plain: '이 카드는 dpas-kernel/tools/testing/selftests/dpas/full_mode_switching_static.py가 무엇을 검증하는지 설명합니다. 테스트는 request_queue direct fields, queue 초기화, switch_enabled sysfs reset, submit helper, poll-time mode switching 전이표를 token/order 기반으로 확인합니다.',
+    why: 'learning tree가 최신 코드 변경을 설명하려면 "그 설명이 깨졌을 때 어떤 테스트가 잡아 주는가"까지 연결해야 합니다. 이 static test는 현재 full DPAS 구조의 최소 회귀 방지선입니다.',
+    context: 'history/2026-06-15.md는 old static test 4개를 삭제하고 full_mode_switching_static.py를 추가했다고 기록합니다. 같은 기록에 py_compile, static test, diff check, object build, checkpatch 결과가 정리되어 있습니다.',
+    confusions: [
+      '이 테스트는 runtime 성능 검증이 아닙니다. 코드 구조가 의도대로 남아 있는지 빠르게 확인하는 테스트입니다.',
+      'static test가 통과해도 VM boot, sysfs runtime, actual HIPRI I/O mode transition은 별도로 확인해야 합니다.',
+    ],
+    next: ['direct fields 카드에서 테스트가 요구하는 request_queue 필드를 확인합니다.', 'Step 4 open questions 카드에서 runtime 검증으로 넘어갑니다.'],
+  },
+  {
+    id: 'validation-colima-build-loop',
+    kind: '사건',
+    status: '확정',
+    community: 'validation',
+    title: 'Colima/Docker bzImage build loop',
+    shortTitle: 'Colima build',
+    summary: 'macOS ARM host에서 Colima/Docker Ubuntu 24.04 이미지로 dpas-kernel x86_64_defconfig와 bzImage 빌드를 통과했습니다.',
+    position: communitySlot('validation', 2, 0),
+    sourceKeys: ['history20260617', 'localKernel'],
+    visual: colimaBuildLoopVisual,
+    plain: '이 카드는 오늘 기준 빌드 루프를 설명합니다. macOS 기본 make/bash로 Linux kernel 요구사항을 맞추지 않고, Colima VM에 repo를 writable mount한 뒤 Docker 이미지 dpas-kernel-build-env:ubuntu24.04 안에서 x86_64_defconfig와 bzImage를 빌드했습니다.',
+    why: 'full DPAS 코드 설명이 최신이어도 실제 커널 빌드가 닫히지 않으면 다음 VM boot/runtime 검증으로 갈 수 없습니다. 이 카드의 성공 기준은 compile/link와 bzImage 생성까지입니다.',
+    context: 'history/2026-06-17.md는 GNU Make 4.3, bash 5.2, gcc-x86_64, pahole 등 도구 버전과 build/dpas-kernel-vm/arch/x86/boot/bzImage 산출물을 기록합니다. top-level vm script는 Colima start/stop/status/ssh를 감쌉니다.',
+    confusions: [
+      'bzImage 생성은 VM boot 성공과 다릅니다.',
+      'Colima mount가 빠지면 Docker 안 /work가 빈 디렉터리처럼 보일 수 있습니다.',
+      '이 빌드 루프는 성능 측정 환경이 아니라 kernel build verification 환경입니다.',
+    ],
+    next: ['Step 4 open questions 카드에서 남은 VM boot/runtime I/O 검증을 확인합니다.', 'history/2026-06-17.md의 bzImage 경로를 다음 부팅 검증 흐름에 연결합니다.'],
+  },
+  {
+    id: 'validation-optane-knob-reset',
+    kind: '사건',
+    status: '확정',
+    community: 'validation',
+    title: 'Optane mode knob reset fix',
+    shortTitle: 'knob reset',
+    summary: 'nvme builtin host에서 mode별 sysfs knob가 이전 mode 상태를 물려받지 않도록 Optane 원본-style 스크립트에 explicit reset을 추가했습니다.',
+    position: communitySlot('validation', 0, 1),
+    sourceKeys: ['history20260612', 'history20260613'],
+    visual: optaneKnobResetVisual,
+    plain: '이 카드는 성능 수치 자체보다 측정 조건을 고친 코드 변경을 설명합니다. scripts/micro_4krr/run_optane_full_dpas_no_ehp.sh는 reset_queue_knobs()와 set_mode_knobs()를 추가해 각 mode 실행 전 io_poll_delay, pas_enabled, pas_adaptive_enabled, ehp_enabled, switch_enabled를 명시적으로 초기화합니다.',
+    why: '이 reset이 없으면 CP 결과가 실제 classic busy polling이 아니라 이전 PAS/LHP knob 상태를 물려받은 값일 수 있습니다. learning tree의 검증 카드가 최신이어야 성능 해석도 덜 흔들립니다.',
+    context: 'history/2026-06-12.md는 원본-style CP 1T의 CPU 62%와 context switch 폭증 원인을 sysfs knob reset 누락으로 분석했고, 같은 날 reset 함수와 정적 테스트를 추가했다고 기록합니다.',
+    confusions: [
+      'CP라는 mode 이름만으로 classic polling 조건이 보장되지 않습니다. sysfs knob 상태를 같이 봐야 합니다.',
+      'warmup/no-warmup 차이를 LHP 효과로만 해석하면 안 됩니다. 실행 세션과 preconditioning 효과가 섞일 수 있습니다.',
+    ],
+    next: ['Part 7 validation 카드에서 FIO 지표를 볼 때 knob 상태를 먼저 고정합니다.', 'Optane 결과를 비교할 때 CP/LHP/PAS/INT의 sysfs 상태표를 함께 남깁니다.'],
   },
 ];

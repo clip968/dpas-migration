@@ -1,6 +1,17 @@
 import type { CardDraft } from '../types';
 import { communitySlot } from '../layout';
-import { interruptRiskVisual, modeVisual, paperDpasVisual, paperPasVisual, part4Visual, part5Visual, part6Visual, pasSleepVisual } from '../visuals';
+import {
+  dpasModeSwitchingDirectFieldVisual,
+  dpasSubmitHelperVisual,
+  interruptRiskVisual,
+  modeVisual,
+  paperDpasVisual,
+  paperPasVisual,
+  part4Visual,
+  part5Visual,
+  part6Visual,
+  pasSleepVisual,
+} from '../visuals';
 
 export const dpasPolicyCards: CardDraft[] = [
   {
@@ -47,6 +58,48 @@ export const dpasPolicyCards: CardDraft[] = [
     plain: '이미 polled queue로 제출된 I/O를 completion path에서만 skip하면 true interrupt mode라고 보기 어렵습니다.',
     why: 'DPAS mode switching 구현에서 가장 큰 설계 리스크입니다.',
     context: 'Part 6 Full Interrupt Mode & NVMe Queue Mapping의 핵심 질문입니다.',
+  },
+  {
+    id: 'dpas-71-submit-helper',
+    kind: '현재 작업',
+    status: '확정',
+    community: 'dpas-policy',
+    title: '7.1 submit helper: blk_dpas_prepare_bio()',
+    shortTitle: 'submit helper',
+    summary: '현재 dpas-kernel은 block/fops와 iomap direct I/O가 같은 helper로 모여 DPAS mode별 REQ_POLLED 여부를 결정합니다.',
+    position: communitySlot('dpas-policy', 3, 0),
+    sourceKeys: ['history20260615', 'history20260613', 'localKernel'],
+    visual: dpasSubmitHelperVisual,
+    plain: '이 카드는 후보가 아니라 현재 코드에 들어간 submit-side 변경을 설명합니다. block/fops.c와 fs/iomap/direct-io.c는 HIPRI bio를 만들 때 blk_dpas_prepare_bio()를 호출하고, helper는 switch_enabled와 dpas_mode를 보고 polled I/O로 둘지 interrupt I/O로 돌릴지 정합니다.',
+    why: 'true interrupt mode는 poll path에서만 해결할 수 없기 때문에 submit 시점의 REQ_POLLED 제어가 핵심입니다. helper로 모으면 5.18식 경로별 복붙 hook보다 현재 코드 흐름을 직관적으로 따라갈 수 있습니다.',
+    context: 'dpas-kernel/block/blk-core.c:942-1014가 helper 본문이고, block/fops.c:382-388과 fs/iomap/direct-io.c:76-79가 호출 지점입니다. history/2026-06-15.md는 이 helper가 mode별 counter와 INT->OL 전이를 담당한다고 정리합니다.',
+    confusions: [
+      '이 카드는 Step 2 hook 후보 카드가 아닙니다. 후보를 지나 현재 들어간 helper를 설명합니다.',
+      'INT mode에서 poll을 안 하는 것과 REQ_POLLED를 submit 전에 지우는 것은 다릅니다. 현재 helper는 후자를 합니다.',
+      'INT->OL 전이는 poll path를 타지 못하므로 submit helper에서 int counter로 처리합니다.',
+    ],
+    next: ['direct-field mode switching 카드에서 helper가 읽는 q->dpas_mode와 counters를 봅니다.', 'full static test 카드에서 helper 호출과 mode별 gate가 어떻게 검증되는지 확인합니다.'],
+  },
+  {
+    id: 'dpas-71-mode-switching-direct-fields',
+    kind: '현재 작업',
+    status: '확정',
+    community: 'dpas-policy',
+    title: '7.1 full DPAS mode switching direct fields',
+    shortTitle: 'direct fields',
+    summary: '현재 full DPAS 포팅은 request_queue에 mode, counter, QD/tf, switch_param 필드를 직접 두고 submit/sysfs/poll 경로가 같은 상태 window를 봅니다.',
+    position: communitySlot('dpas-policy', 4, 0),
+    sourceKeys: ['history20260615', 'localKernel'],
+    visual: dpasModeSwitchingDirectFieldVisual,
+    plain: '이 카드는 2026-06-15 기준 최신 구현 상태를 설명합니다. enum dpas_mode는 request_queue 밖에 선언됐고, request_queue 안에는 dpas_lock, dpas_mode, mode별 counter, dpas_qd, dpas_qd_sum, dpas_tf, switch_enabled, switch_param1~7이 직접 들어 있습니다.',
+    why: 'learning tree의 예전 Step 4는 별도 state pointer 계획을 설명했지만, 현재 코드는 direct field 방식으로 검증을 진행했습니다. 따라서 tree도 "계획"이 아니라 현재 코드가 실제로 어떤 상태를 어디에 두는지 보여 줘야 합니다.',
+    context: 'dpas-kernel/include/linux/blkdev.h:490-554가 direct field 구조이고, block/blk-sysfs.c:788-831은 switch_enabled reset, block/blk-mq.c:5656-5738은 CP/PAS/OL/INT 전이 판단을 담고 있습니다.',
+    confusions: [
+      'direct field 방식은 "모든 미래 설계가 끝났다"는 뜻이 아니라 현재 포팅 tree의 실제 코드 상태입니다.',
+      'mode counter는 submit path에서 세고, QD/tf 표본은 poll/PAS sleep 경로에서 모입니다.',
+      'INT mode는 poll path를 타지 않으므로 INT->OL 전이는 blk_dpas_prepare_bio() 쪽에서 봐야 합니다.',
+    ],
+    next: ['Step 4 state placement 카드를 열어 stale q->dpas 계획이 어떻게 최신 direct-field 설명으로 바뀌었는지 봅니다.', 'full mode switching static test 카드에서 이 구조가 어떤 token/전이표로 검증되는지 확인합니다.'],
   },
   {
     id: 'part4-minimal-pas',

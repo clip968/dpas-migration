@@ -1,35 +1,35 @@
 import type { VisualModel } from '../../types';
 
 export const step4OverviewVisual: VisualModel = {
-  title: 'Step 4가 Part 4 전에 고정하는 결정',
-  description: 'Step 4는 코드를 쓰기 전에 state 위치, poll hook, sysfs 노출 순서를 좁히는 decision pass입니다.',
+  title: 'Step 4 결정이 최신 코드로 바뀐 지점',
+  description: 'Step 4는 계획 카드에서 현재 dpas-kernel 코드 상태를 읽는 카드로 갱신됩니다.',
   flowSteps: [
     { title: '1. old DPAS diff', description: '5.18 artifact가 request_queue, blk_mq_poll, sysfs에 넣은 state와 hook을 확인', tone: 'rose' },
-    { title: '2. latest state gap', description: '최신 request_queue에는 DPAS state가 없음을 확인', tone: 'slate' },
-    { title: '3. q->dpas 방향', description: 'request_queue에는 pointer만 두고 PAS state는 별도 구조체로 분리', tone: 'teal' },
-    { title: '4. poll hook 비교', description: 'bio_poll, blk_mq_poll, blk_hctx_poll, nvme_poll 중 blk_mq_poll을 1차 후보로 둠', tone: 'blue' },
-    { title: '5. lifecycle 먼저', description: 'sysfs knob보다 q->dpas init/free와 NULL handling을 먼저 결정', tone: 'amber' },
+    { title: '2. direct field 구현', description: '현재 dpas-kernel은 request_queue에 mode/counter/QD/tf를 직접 둠', tone: 'teal' },
+    { title: '3. submit helper', description: 'block fops와 iomap submit이 blk_dpas_prepare_bio()로 모임', tone: 'blue' },
+    { title: '4. sysfs reset', description: 'switch_enabled store가 lock 안에서 PAS window를 새로 시작', tone: 'amber' },
+    { title: '5. static test', description: 'full_mode_switching_static.py가 현재 구조를 회귀 방지 기준으로 잡음', tone: 'violet' },
   ],
   notes: [
-    'Step 4의 산출물은 patch가 아니라 Part 4에서 손으로 구현할 위치와 순서입니다.',
-    'PAS-only를 먼저 닫고 full DPAS mode switching과 interrupt mode는 뒤 단계로 분리합니다.',
+    '이제 Step 4의 핵심은 "무엇을 할까"보다 "현재 코드가 어디까지 왔나"를 보여 주는 것입니다.',
+    'PAS-only 계획과 full DPAS 구현 상태를 구분해서 읽어야 합니다.',
   ],
 };
 
 export const step4StatePlacementVisual: VisualModel = {
-  title: 'request_queue 직접 field vs q->dpas pointer',
-  description: '최신 kernel 공용 구조체를 덜 오염시키기 위해 DPAS state를 별도 구조체로 모으는 판단입니다.',
+  title: 'request_queue direct field 구조',
+  description: '현재 구현은 queue 안에 full DPAS state를 직접 두고 submit/sysfs/poll이 같은 window를 봅니다.',
   comparison: {
-    title: 'state placement 비교',
-    leftLabel: 'old DPAS direct fields',
-    rightLabel: 'latest migration q->dpas',
+    title: '계획에서 현재 코드로 바뀐 점',
+    leftLabel: '예전 계획/비교 단계',
+    rightLabel: '현재 dpas-kernel',
     leftTone: 'rose',
     rightTone: 'teal',
     rows: [
-      { label: 'request_queue 변경', left: 'pas_stat, pas_enabled, switch_enabled 등 여러 field 추가', right: 'struct dpas_queue *dpas pointer만 추가' },
-      { label: 'PAS-only 범위', left: 'PAS와 full DPAS switch_param이 섞임', right: 'PAS 최소 state부터 시작하고 full DPAS는 확장 가능' },
-      { label: 'CONFIG_DPAS', left: '공용 구조체에 실험 field가 많이 남음', right: 'pointer와 helper를 CONFIG_DPAS로 감싸기 쉬움' },
-      { label: 'sysfs 접근', left: 'q->pas_enabled 직접 접근', right: 'q->dpas NULL check 후 q->dpas->pas_enabled 접근' },
+      { label: 'state 위치', left: '별도 state 묶음 후보도 검토', right: 'request_queue direct fields로 구현' },
+      { label: 'mode', left: 'Part 5 이후 후보', right: 'enum dpas_mode + dpas_mode 필드' },
+      { label: 'counter', left: 'mode counter 필요성만 정리', right: 'dpas_cp/pas/ol/int_cnt와 qd/tf 필드' },
+      { label: 'sysfs 접근', left: 'lifetime 정책 미정', right: 'switch_enabled store가 lock 안에서 reset' },
     ],
   },
   asciiArts: [
@@ -41,22 +41,22 @@ export const step4StatePlacementVisual: VisualModel = {
         '  int pas_enabled;',
         '  int switch_enabled;',
         '',
-        'latest src/linux-upstream/include/linux/blkdev.h:493',
-        '  const struct blk_mq_ops *mq_ops;',
-        '  struct blk_mq_ctx __percpu *queue_ctx;',
-        '  struct blk_mq_hw_ctx * __rcu *queue_hw_ctx;',
+        'current dpas-kernel/include/linux/blkdev.h:490',
+        '  enum dpas_mode { INT, CP, PAS, OL }',
         '',
-        'migration direction',
-        '  struct request_queue',
-        '    contains -> struct dpas_queue *dpas',
-        '      contains -> PAS state / counters / per-CPU state',
+        'current request_queue fields',
+        '  dpas_lock',
+        '  dpas_mode',
+        '  dpas_cp_cnt / dpas_pas_cnt / dpas_ol_cnt / dpas_int_cnt',
+        '  dpas_qd / dpas_qd_sum / dpas_tf',
+        '  switch_enabled / switch_param1..7',
       ].join('\n'),
-      caption: 'old DPAS는 request_queue에 field를 직접 추가했고, latest에는 DPAS state가 아직 없습니다.',
+      caption: '현재 learning tree는 후보 계획보다 실제 dpas-kernel field 배치를 먼저 보여 줍니다.',
     },
   ],
   notes: [
-    '이 판단은 Part 4에서 include/linux/blkdev.h를 수정할 때 직접 field 복사를 피하게 만듭니다.',
-    'q->dpas가 NULL일 수 있으므로 poll hook과 sysfs 모두 NULL guard를 전제로 설계해야 합니다.',
+    'direct field 방식은 현재 구현 상태를 설명합니다. 나중에 구조를 다시 정리할 여지는 별도 리팩터링 판단입니다.',
+    'submit helper와 poll switcher가 같은 queue state를 읽으므로 locking 설명이 중요합니다.',
   ],
 };
 
@@ -80,7 +80,7 @@ export const step4PollHookCandidatesVisual: VisualModel = {
     columns: ['볼 수 있는 정보', '장점', '주의'],
     rows: [
       { label: 'bio_poll()', cells: ['bio, bi_bdev, cookie', 'user-facing poll entry에 가까움', 'request/hctx 내부 state 접근이 제한적'], tone: 'blue' },
-      { label: 'blk_mq_poll()', cells: ['request_queue, cookie, hctx lookup', 'block layer 공통이고 q->dpas와 연결 쉬움', 'request-level bucket/generation 정보 확보 방법 확인 필요'], tone: 'teal' },
+      { label: 'blk_mq_poll()', cells: ['request_queue, cookie, hctx lookup', 'block layer 공통이고 queue state와 연결 쉬움', 'request-level bucket/generation 정보 확보 방법 확인 필요'], tone: 'teal' },
       { label: 'blk_hctx_poll()', cells: ['q, hctx, mq_ops->poll loop', 'driver callback 직전', '반복 loop 책임과 PAS policy가 섞일 수 있음'], tone: 'amber' },
       { label: 'nvme_poll()', cells: ['NVMe queue, CQ pending', 'NVMe 실험은 빠르게 가능', 'NVMe 전용 hook이 됨'], tone: 'rose' },
     ],
@@ -111,63 +111,62 @@ export const step4PollHookCandidatesVisual: VisualModel = {
 };
 
 export const step4SysfsLifecycleVisual: VisualModel = {
-  title: 'sysfs는 q->dpas lifecycle 뒤에 온다',
-  description: 'sysfs show/store는 q->dpas를 읽고 쓰므로 allocation/free와 NULL handling이 먼저 정해져야 합니다.',
+  title: 'switch_enabled는 mode window reset entry다',
+  description: '현재 sysfs store는 switch_enabled 값을 쓰고 같은 lock 안에서 mode/counter/QD/tf window를 PAS 기준으로 리셋합니다.',
   flowSteps: [
-    { title: '1. q->dpas 구조 결정', description: 'PAS state가 어디에 있는지 먼저 고정', tone: 'teal' },
-    { title: '2. init/free 연결', description: 'queue 생성 성공 후 할당하고 queue free 전에 해제', tone: 'blue' },
-    { title: '3. sysfs show/store 작성', description: 'q->dpas NULL이면 -EINVAL 같은 실패 경로 반환', tone: 'amber' },
-    { title: '4. queue_attrs에 entry 추가', description: 'pas_enabled 같은 knob를 /sys/block/.../queue 아래 노출', tone: 'violet' },
+    { title: '1. poll-capable 확인', description: 'queue_dpas_poll_capable(q) 아니면 -EINVAL', tone: 'teal' },
+    { title: '2. 0/1 parsing', description: 'kstrtoint 후 val 범위를 확인', tone: 'blue' },
+    { title: '3. lock 획득', description: 'submit path와 poll path가 같은 state를 볼 수 있으므로 dpas_lock 사용', tone: 'amber' },
+    { title: '4. reset window', description: 'mode를 PAS로 두고 counters, QD, tf를 0으로 초기화', tone: 'violet' },
   ],
   asciiArts: [
     {
-      title: 'macro expansion model',
+      title: 'current store model',
       art: [
-        'src/linux-upstream/block/blk-sysfs.c:590',
-        '  #define QUEUE_RW_ENTRY(_prefix, _name)',
-        '    .attr  = { .name = _name, .mode = 0644 }',
-        '    .show  = _prefix##_show',
-        '    .store = _prefix##_store',
-        '',
-        'future example',
-        '  QUEUE_RW_ENTRY(queue_pas_enabled, "pas_enabled");',
-        '    expects -> queue_pas_enabled_show()',
-        '    expects -> queue_pas_enabled_store()',
-        '',
-        'safe store shape',
-        '  if (!q->dpas)',
+        'queue_switch_enabled_store()',
+        '  if (!queue_dpas_poll_capable(q))',
         '      return -EINVAL;',
-        '  q->dpas->pas_enabled = val;',
+        '',
+        '  parse val: only 0 or 1',
+        '',
+        '  spin_lock_irqsave(&q->dpas_lock, flags)',
+        '      q->switch_enabled = val',
+        '      q->dpas_mode = DPAS_MODE_PAS',
+        '      q->dpas_*_cnt = 0',
+        '      q->dpas_qd = 0',
+        '      q->dpas_qd_sum = 0',
+        '      q->dpas_tf = 0',
+        '  spin_unlock_irqrestore(...)',
       ].join('\n'),
-      caption: '매크로는 sysfs entry를 만들 뿐이고, q->dpas의 lifetime 안전성은 별도로 보장해야 합니다.',
+      caption: 'switch_enabled를 다시 쓰는 순간 새 측정 window가 PAS에서 시작됩니다.',
     },
   ],
   notes: [
-    'sysfs_emit()은 show callback에서 page buffer를 안전하게 채우는 helper입니다.',
-    'ssize_t는 성공 시 byte count, 실패 시 음수 errno를 반환하기 위해 쓰입니다.',
+    '이 카드는 sysfs 매크로 문법보다 현재 reset 의미를 먼저 보여 줍니다.',
+    'reset은 lock 안에서 해야 submit helper와 poll switcher가 반쯤 초기화된 state를 보지 않습니다.',
   ],
 };
 
 export const step4QueueLifecycleVisual: VisualModel = {
-  title: 'q->dpas init/free 후보',
-  description: 'request_queue 객체 생성과 blk-mq queue 완성 시점을 구분해서 DPAS state lifetime을 잡습니다.',
+  title: 'queue init에서 direct field 기본값을 둔다',
+  description: '현재 구현은 queue 생성 후 별도 할당 없이 request_queue direct fields를 초기화합니다.',
   timeline: {
-    title: 'queue lifetime reading order',
+    title: 'queue state initialization order',
     rows: [
       {
         label: 'create',
         segments: [
           { label: 'blk_alloc_queue()', duration: 'q object', state: 'submit', description: 'request_queue 메모리와 기본 lock/ref/stat 준비' },
           { label: 'blk_mq_init_allocated_queue()', duration: 'mq setup', state: 'check', description: 'hctx/tag/context 구조 연결' },
-          { label: 'dpas init candidate', duration: 'after success', state: 'done', description: 'poll-capable queue인지 보고 q->dpas 할당 후보' },
+          { label: 'DPAS fields init', duration: 'during init', state: 'done', description: 'dpas_lock, switch_enabled, mode, counters 초기화' },
         ],
       },
       {
-        label: 'free',
+        label: 'reset',
         segments: [
-          { label: 'blk_free_queue()', duration: 'release', state: 'check', description: 'stats와 mq release 처리' },
-          { label: 'dpas free candidate', duration: 'before RCU free', state: 'done', description: 'q 메모리가 RCU로 넘어가기 전 q->dpas 해제 후보' },
-          { label: 'blk_free_queue_rcu()', duration: 'q memory', state: 'done', description: 'request_queue 메모리 반환' },
+          { label: 'switch_enabled store', duration: 'sysfs write', state: 'check', description: '사용자가 새 측정 window를 열거나 닫음' },
+          { label: 'queue_dpas_reset_switch_state()', duration: 'locked reset', state: 'done', description: 'mode/counter/QD/tf reset' },
+          { label: 'submit/poll observe', duration: 'next I/O', state: 'done', description: '새 window의 mode state를 사용' },
         ],
       },
     ],
@@ -176,21 +175,24 @@ export const step4QueueLifecycleVisual: VisualModel = {
     {
       title: 'code evidence',
       art: [
-        'src/linux-upstream/block/blk-mq.c:4453',
-        '  q = blk_alloc_queue(lim, set->numa_node);',
-        '  q->queuedata = queuedata;',
-        '  ret = blk_mq_init_allocated_queue(set, q);',
+        'dpas-kernel/block/blk-mq.c:4777',
+        '  spin_lock_init(&q->dpas_lock);',
+        '  q->switch_enabled = 0;',
+        '  q->dpas_mode = DPAS_MODE_PAS;',
+        '  q->dpas_cp_cnt = 0;',
+        '  q->dpas_pas_cnt = 0;',
+        '  q->dpas_ol_cnt = 0;',
+        '  q->dpas_int_cnt = 0;',
         '',
-        'src/linux-upstream/block/blk-core.c:257',
-        '  static void blk_free_queue(struct request_queue *q)',
-        '  call_rcu(&q->rcu_head, blk_free_queue_rcu);',
+        'dpas-kernel/block/blk-sysfs.c:788',
+        '  queue_dpas_reset_switch_state(q)',
       ].join('\n'),
-      caption: 'blk_alloc_queue는 q 그릇을 만들고, blk_mq_alloc_queue wrapper가 blk-mq 초기화 성공까지 묶습니다.',
+      caption: '현재는 allocation/free보다 init/reset이 핵심 lifecycle입니다.',
     },
   ],
   notes: [
-    'PAS가 poll path 기능이면 blk-mq 초기화 성공 이후에 q->dpas를 붙이는 쪽이 자연스럽습니다.',
-    'allocation 실패를 queue 생성 실패로 볼지 DPAS disable로 볼지는 Part 4 구현 전에 결정해야 합니다.',
+    '별도 state allocation 실패 경로가 없어진 대신 request_queue 구조체가 직접 커졌습니다.',
+    'lifecycle 질문은 이제 "어디서 할당하나"보다 "언제 reset하고 누가 동시에 읽나"로 바뀌었습니다.',
   ],
 };
 
@@ -221,7 +223,7 @@ export const step4RequestQueueModelVisual: VisualModel = {
   ],
   notes: [
     'SSD 또는 block device가 늘어나면 보통 request_queue도 늘지만, partition은 parent disk의 queue를 공유할 수 있습니다.',
-    'q->dpas에 state를 둔다는 말은 block device queue 단위의 PAS state를 둔다는 뜻입니다.',
+    'queue에 state를 둔다는 말은 특정 request가 아니라 block device queue 단위의 DPAS state를 둔다는 뜻입니다.',
   ],
 };
 
@@ -265,30 +267,30 @@ export const step4HctxTypeMapVisual: VisualModel = {
 };
 
 export const step4OpenQuestionsVisual: VisualModel = {
-  title: 'Step 4에서 Part 4로 넘기기 전 남은 질문',
-  description: 'blk_mq_poll() 1차 후보와 q->dpas 방향을 실제 구현으로 바꾸려면 아직 확인할 정보입니다.',
+  title: '최신 Step 4 이후 남은 질문',
+  description: '현재 코드는 static/build 검증을 통과했지만 runtime boot와 실제 I/O 증거는 아직 남아 있습니다.',
   slotGroups: [
     {
-      title: 'hook feasibility',
-      description: 'blk_mq_poll()에서 PAS-only에 필요한 정보를 얻을 수 있는가',
+      title: 'runtime proof',
+      description: '현재 full DPAS 코드가 실제 VM/장치에서 의도대로 움직이는가',
       slots: [
-        { label: 'request lookup', description: 'cookie/hctx만으로 현재 request 또는 bucket 정보를 안전하게 찾을 수 있는지 확인', tone: 'amber' },
-        { label: 'duplicate guard', description: 'old RQF_MQ_POLL_SLEPT 같은 중복 sleep/update 방지 수단 필요', tone: 'rose' },
-        { label: 'result update', description: 'poll 결과가 UNDER/OVER duration update로 돌아갈 위치 필요', tone: 'teal' },
+        { label: 'VM boot', description: '새 bzImage가 VM에서 부팅되는지 확인', tone: 'amber' },
+        { label: 'sysfs read/write', description: 'switch_enabled와 mode knobs가 runtime에서 정상 동작하는지 확인', tone: 'teal' },
+        { label: 'HIPRI workload', description: 'raw block과 filesystem DIO 양쪽에서 helper 경로가 타는지 확인', tone: 'rose' },
       ],
     },
     {
-      title: 'state and sysfs safety',
-      description: 'q->dpas lifetime과 사용자 knob를 crash 없이 묶는 방법',
+      title: 'measurement proof',
+      description: '성능 결론을 내기 전에 측정 조건과 mode 상태를 고정하는 방법',
       slots: [
-        { label: 'allocation failure', description: 'queue 생성 실패로 볼지 DPAS만 disable할지 결정', tone: 'blue' },
-        { label: 'NULL handling', description: 'show/store와 poll hook에서 q->dpas == NULL이면 빠르게 return', tone: 'slate' },
-        { label: 'Part 4 scope', description: 'switch_enabled, switch_param*, interrupt mode는 제외', tone: 'violet' },
+        { label: 'knob reset', description: '각 mode 실행 전 CP/LHP/PAS/INT sysfs 상태를 명시적으로 reset', tone: 'blue' },
+        { label: 'mode evidence', description: 'counter 또는 trace로 실제 mode 전이를 확인', tone: 'slate' },
+        { label: 'repeat design', description: 'jobs/repeats/order/warmup을 통제해 해석 오류를 줄임', tone: 'violet' },
       ],
     },
   ],
   notes: [
-    '이 카드의 목적은 구현을 멈추자는 뜻이 아니라 수동 구현 전에 확인할 체크리스트를 고정하는 것입니다.',
-    '질문이 닫히면 Part 4 Minimal PAS-only card로 넘어가 patch 순서를 작성할 수 있습니다.',
+    '이 카드는 예전 구현 전 질문 목록이 아니라 최신 코드 이후 검증 질문 목록입니다.',
+    'compile/link 통과와 runtime DPAS 동작은 같은 성공 기준이 아닙니다.',
   ],
 };

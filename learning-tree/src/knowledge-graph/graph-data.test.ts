@@ -32,6 +32,42 @@ describe('knowledge graph data', () => {
     }
   });
 
+  it('includes the current code-change learning cards from the history log', () => {
+    const cardIds = new Set(graphCards.map((card) => card.id));
+
+    for (const cardId of [
+      'dpas-71-submit-helper',
+      'dpas-71-mode-switching-direct-fields',
+      'validation-full-mode-static-test',
+      'validation-optane-knob-reset',
+      'validation-colima-build-loop',
+    ]) {
+      expect(cardIds.has(cardId), `${cardId} exists`).toBe(true);
+    }
+  });
+
+  it('does not keep the superseded q->dpas pointer plan as the Step 4 state story', () => {
+    const step4Cards = graphCards.filter((card) => card.community === 'step4-diff-decision');
+    const step4Text = step4Cards
+      .flatMap((card) => [
+        card.title,
+        card.summary,
+        ...card.details,
+        ...card.sections.commonConfusions,
+        ...card.sections.nextSteps,
+      ])
+      .join('\n');
+
+    expect(step4Text).not.toContain('q->dpas');
+    expect(step4Text).not.toContain('struct dpas_queue');
+  });
+
+  it('keeps handwritten ASCII diagrams visible in rendered card sections', () => {
+    const interruptRisk = graphCards.find((card) => card.id === 'risk-interrupt-submission');
+
+    expect(interruptRisk?.sections.visual.body).toContain('이미 poll 전용 queue로 들어감');
+  });
+
   it('places every card inside its declared community box', () => {
     const communities = new Map(graphCommunities.map((community) => [community.id, community]));
 

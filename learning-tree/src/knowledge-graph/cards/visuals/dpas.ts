@@ -112,6 +112,74 @@ export const interruptRiskVisual: VisualModel = {
   ],
 };
 
+export const dpasSubmitHelperVisual: VisualModel = {
+  title: '7.1 submit helper가 맡는 일',
+  description: 'HIPRI bio가 들어오면 현재 DPAS mode를 보고 polled로 보낼지 interrupt로 보낼지 한 helper에서 정합니다.',
+  asciiArts: [
+    {
+      title: 'submit-time gate',
+      art: [
+        '  block/fops.c                  fs/iomap/direct-io.c',
+        '       \\                              /',
+        '        \\                            /',
+        '         +--> blk_dpas_prepare_bio()',
+        '                    |',
+        '                    v',
+        '        switch_enabled == 0 ?',
+        '            yes -> 기존 HIPRI polling 유지',
+        '             no -> q->dpas_mode 확인',
+        '',
+        '        INT  -> IOCB_HIPRI 제거 + REQ_POLLED clear',
+        '        CP   -> bio_set_polled() + cp counter',
+        '        PAS  -> bio_set_polled() + pas counter',
+        '        OL   -> bio_set_polled() + ol counter',
+      ].join('\n'),
+      caption: '두 submit 경로가 같은 helper로 모이기 때문에 5.18식 복붙 hook보다 읽기 쉽습니다.',
+    },
+  ],
+  notes: [
+    'INT->OL 전이는 poll path를 타지 못하므로 submit helper에서 int counter로 처리합니다.',
+    '이 카드는 hook 후보가 아니라 현재 dpas-kernel에 들어간 실제 submit-side 코드입니다.',
+  ],
+};
+
+export const dpasModeSwitchingDirectFieldVisual: VisualModel = {
+  title: '7.1 full DPAS direct-field 구조',
+  description: '현재 포팅은 별도 state pointer 계획이 아니라 request_queue 안의 direct field와 lock으로 mode/counter를 묶습니다.',
+  asciiArts: [
+    {
+      title: 'queue 단위 상태와 세 경로',
+      art: [
+        '  struct request_queue',
+        '  + dpas_lock',
+        '  + dpas_mode: INT / CP / PAS / OL',
+        '  + dpas_*_cnt',
+        '  + dpas_qd, dpas_qd_sum, dpas_tf',
+        '  + switch_enabled, switch_param1..7',
+        '',
+        '       sysfs write',
+        '           |  switch_enabled store resets window to PAS',
+        '           v',
+        '       submit path',
+        '           |  blk_dpas_prepare_bio() counts selected mode',
+        '           v',
+        '       poll path',
+        '           |  PAS sleep updates qd/tf',
+        '           v',
+        '       blk_dpas_maybe_switch_mode()',
+        '           CP -> PAS',
+        '           PAS -> CP or OL',
+        '           OL -> PAS or INT',
+      ].join('\n'),
+      caption: '상태는 queue에 있고, submit/sysfs/poll 세 경로가 lock 아래에서 같은 window를 봅니다.',
+    },
+  ],
+  notes: [
+    'Step 4의 예전 별도 state pointer 계획은 최신 history 기준으로 대체됐습니다.',
+    'direct field 선택은 현재 구현을 설명하는 카드이지, 향후 구조 개선 가능성을 닫는 말은 아닙니다.',
+  ],
+};
+
 export const part4Visual: VisualModel = {
   title: 'Minimal PAS-only 구현 범위',
   description: 'full DPAS가 아니라 sleep-before-poll 하나만 최소 형태로 넣고 검증하는 단계입니다.',
@@ -170,6 +238,98 @@ export const part7Visual: VisualModel = {
     '평균만 보면 tail이 숨습니다. 반드시 percentile도 같이 관측합니다.',
     'DPAS mode counter가 없으면 어떤 mode가 실제로 사용됐는지 추측만 가능합니다.',
     'WSL에서는 성능 측정이 불가합니다. bare-metal NVMe 환경에서만 유효합니다.',
+  ],
+};
+
+export const fullModeStaticTestVisual: VisualModel = {
+  title: 'full_mode_switching_static.py 검증 범위',
+  description: '새 static test는 현재 full DPAS 포팅을 네 덩어리로 나눠 구조가 빠지지 않았는지 확인합니다.',
+  asciiArts: [
+    {
+      title: 'static test checklist',
+      art: [
+        '  include/linux/blkdev.h',
+        '      enum dpas_mode + request_queue direct fields',
+        '',
+        '  block/blk-sysfs.c',
+        '      switch_enabled show/store + reset window',
+        '',
+        '  block/blk-core.c + fops/iomap callers',
+        '      blk_dpas_prepare_bio() submit gate',
+        '',
+        '  block/blk-mq.c',
+        '      PAS qd/tf update + blk_dpas_maybe_switch_mode()',
+      ].join('\n'),
+      caption: '이 테스트는 old partial PAS guard들을 대체해 현재 full mode switching 구조를 검증합니다.',
+    },
+  ],
+  notes: [
+    '테스트가 코드의 의도 전체를 증명하진 않지만, 빠진 hook이나 stale policy 회귀를 빨리 잡습니다.',
+    'runtime I/O 검증과 VM boot 검증은 아직 별도 단계로 남아 있습니다.',
+  ],
+};
+
+export const optaneKnobResetVisual: VisualModel = {
+  title: 'Optane mode knob reset 보정',
+  description: 'nvme가 builtin인 host에서는 modprobe reload가 reset 수단이 아니므로 각 mode 직전에 sysfs knob를 명시적으로 맞춥니다.',
+  asciiArts: [
+    {
+      title: 'mode 실행 전 knob 상태',
+      art: [
+        '  every mode run',
+        '      |',
+        '      v',
+        '  reset_queue_knobs()',
+        '      io_poll_delay = -1',
+        '      pas_enabled = 0',
+        '      pas_adaptive_enabled = 0',
+        '      ehp_enabled = 0',
+        '      switch_enabled = 0',
+        '      |',
+        '      v',
+        '  set_mode_knobs(mode)',
+        '      CP  -> io_poll=1, classic polling',
+        '      LHP -> io_poll=1, io_poll_delay=0',
+        '      PAS -> LHP knobs + PAS knobs',
+        '      INT -> reset baseline',
+      ].join('\n'),
+      caption: 'CP가 PAS/LHP 설정을 물려받아 context switch가 폭증하던 해석 오류를 막습니다.',
+    },
+  ],
+  notes: [
+    '원본-style Optane script는 destructive device experiment라 실행 전 대상 장치 확인이 필요합니다.',
+    '이 카드는 성능 결론보다 측정 조건을 올바르게 만드는 코드 변경에 초점을 둡니다.',
+  ],
+};
+
+export const colimaBuildLoopVisual: VisualModel = {
+  title: 'macOS ARM 빌드 루프',
+  description: 'macOS host에서는 커널 빌드 도구 요구사항을 직접 맞추기보다 Colima/Docker Ubuntu 이미지 안에서 x86 bzImage를 빌드합니다.',
+  asciiArts: [
+    {
+      title: 'build path',
+      art: [
+        '  ./vm start',
+        '      Colima VM: cpu=4, memory=8GiB, disk=80GiB',
+        '      mount /Volumes/CodeCS/dpas-migration writable',
+        '          |',
+        '          v',
+        '  docker image: dpas-kernel-build-env:ubuntu24.04',
+        '      GNU make 4.3, bash 5.2, gcc-x86_64, pahole, lld',
+        '          |',
+        '          v',
+        '  make -C dpas-kernel O=build/dpas-kernel-vm x86_64_defconfig',
+        '  make -C dpas-kernel O=build/dpas-kernel-vm -j4 bzImage',
+        '          |',
+        '          v',
+        '  build/dpas-kernel-vm/arch/x86/boot/bzImage',
+      ].join('\n'),
+      caption: '현재 검증은 compile/link와 bzImage 생성까지이며 VM boot/runtime I/O는 다음 단계입니다.',
+    },
+  ],
+  notes: [
+    'Colima mount가 빠지면 Docker 안의 /work가 빈 디렉터리처럼 보일 수 있습니다.',
+    './vm ssh는 Colima가 꺼져 있으면 자동 시작하지 않고 실패하도록 만들었습니다.',
   ],
 };
 

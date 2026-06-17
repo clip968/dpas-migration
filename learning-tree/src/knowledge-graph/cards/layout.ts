@@ -101,8 +101,8 @@ const communityLayouts: CommunityLayout[] = [
     description: 'FIO microbenchmark와 이후 regression/final report 증거를 담는 공간입니다.',
     tone: 'blue',
     position: { x: 80, y: 1530 },
-    columns: 2,
-    rows: 1,
+    columns: 3,
+    rows: 2,
   },
 ];
 

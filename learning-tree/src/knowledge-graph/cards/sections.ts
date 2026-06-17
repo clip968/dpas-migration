@@ -146,6 +146,9 @@ function buildAsciiVisual(visual: VisualModel) {
     art.title,
     '',
     art.caption ?? visual.description,
+    '',
+    art.art,
+    '',
     ...visual.notes.map((note) => `- ${note}`),
   ].join('\n');
 }
