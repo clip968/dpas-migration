@@ -105,6 +105,11 @@ These attributes are implemented in the kernel tree vendored under `./kernel/`.
 We provide the kernel source for reproducibility; however, building and booting a kernel is system-dependent and may take longer than the kick-the-tires phase.
 At a minimum, the reviewer should ensure they are running a kernel that includes the changes under `kernel/block/blk-sysfs.c` and related files.
 
+### Build command note
+
+In this workspace, agent-run shell commands may be prefixed with `rtk` to reduce terminal output.
+`rtk make ...` works for kernel builds, but raw `make ...` or `rtk proxy <cmd>` is easier when debugging build progress, `find` options, or full logs.
+
 ### One-touch runner (`run_all.sh`)
 
 Run everything:
