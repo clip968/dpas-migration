@@ -34,6 +34,12 @@ After any code modification, Codex must clearly report:
 - 일일 현황판을 테스트 명령어, 빌드 로그, 긴 터미널 출력으로 채우지 않는다. 검증 상태는 다음 공부/작업 방향을 바꿀 때만 짧게 언급한다.
 - 의미 있는 작업이 끝나면 오늘 날짜 파일만 갱신한다. 다음 날에는 미해결 질문과 다음 작업만 이어받는다.
 
+## Handoff Notes
+
+- `history/handoff.md`에는 현재 진행 중인 사항과 사용자가 지금 알아야 하는 사항만 적는다.
+- 완료된 세부 로그, 긴 검증 출력, 오래된 배경 설명은 handoff에 누적하지 않는다.
+- handoff는 다음 작업자가 바로 이어서 볼 현재 위치, 핵심 파일, 남은 판단 지점만 짧게 복구하는 용도로 유지한다.
+
 <!-- serena -->
 Use Serena MCP for semantic code navigation and symbol-level code edits when it improves accuracy or context efficiency. Do not use Serena automatically for every task.
 
