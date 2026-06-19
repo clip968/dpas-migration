@@ -10,6 +10,7 @@ JOB_LIST = [int(x) for x in _csv_env("DPAS_JOB_LIST", "1,2,4,8,16,20")]
 RW_FLAGS = _csv_env("DPAS_RW_FLAGS", "RR")
 IO_MODE = _csv_env("DPAS_IO_MODE", "INT,CP,LHP,PAS,DPAS1")
 REPEATS = int(sys.argv[1])
+MEAN_STD_ASCEND = 0 if all(a > b for a, b in zip(JOB_LIST, JOB_LIST[1:])) else 1
 
 try:
     LOG_BASE_DIR = os.getcwd() + f"/fio_data"
@@ -99,4 +100,4 @@ for rr_rw in RW_FLAGS:
 
 		f.close()
 
-		os.system(f"python3 mean_std.py 2 ./parsed_data/{device}-{rr_rw}-repeat_{REPEATS}.txt 1")
+		os.system(f"python3 mean_std.py 2 ./parsed_data/{device}-{rr_rw}-repeat_{REPEATS}.txt {MEAN_STD_ASCEND}")
