@@ -1000,6 +1000,121 @@ polling 코드는 fio worker가 syscall 안에서 돌 때만 실행된다. `pkil
 ### 10.10 (주의) `switch_param5/6` = 0 설정 시 0 나눗셈 위험
 `avg_qd = dpas_qd_sum * 10 / dpas_pas_cnt` 직전 가드는 `dpas_pas_cnt < switch_param5`다. sysfs 범위가 `-1..INT_MAX`라 `param5=0`을 넣으면 `cnt=0`에서도 가드를 통과해 0 나눗셈이 날 수 있다. 실험 시 `switch_param5/6/7`은 1 이상으로 둘 것.
 
+### 10.11 `bdev_get_queue(bio->bi_bdev)`가 주는 것은 hctx가 아니라 `request_queue`다
+`bdev_get_queue()` 정의 (`include/linux/blkdev.h`):
+```c
+static inline struct request_queue *bdev_get_queue(struct block_device *bdev)
+{
+	return bdev->bd_queue;	/* this is never NULL */
+}
+```
+
+DPAS 코드(`blk_dpas_prepare_bio`, `blk_mq_submit_bio` 등)에서 `q = bdev_get_queue(bio->bi_bdev)`로 얻는 건 **`request_queue *`**이지 hctx가 아니다. hctx는 그 이후 단계에서 별도로 매핑해서 얻는다.
+
+**bdev와 request_queue의 관계 (주의)**
+- `bdev`(= `nvme0n1p1` 같은 파티션, 또는 `nvme0n1` 같은 디스크 전체)는 `bd_queue` 포인터로 `request_queue`를 **가리킨다** (안에 있는 게 아니라).
+- 같은 디스크의 파티션들(p1, p2, ...)과 디스크 전체(nvme0n1)는 **하나의 `request_queue`를 공유**한다. → bdev : request_queue = N:1.
+
+**"소프트웨어 큐" 용어 정리 (혼동 주의)**
+- `request_queue` — 디스크당 1개. 파이프라인 전체(scheduler/limits/cgroup/throttle/tag_set).
+- `blk_mq_ctx` — **진짜 "소프트웨어 큐"**. per-CPU로 할당 (`alloc_percpu(struct blk_mq_ctx)`, `q->queue_ctx`). `blk-mq.h` 주석: "State for a software queue facing the submitting CPUs".
+- `blk_mq_hw_ctx` (hctx) — 하드웨어 큐 컨텍스트. `nr_hw_queues`개.
+
+**매핑 흐름**
+```
+nvme0n1p1 (bdev) ─┐
+nvme0n1p2 (bdev) ─┼──→ request_queue (1개, 디스크 단위 공유)
+nvme0n1   (bdev) ─┘         │
+                            ├── ctx[CPU0] ─┐
+                            ├── ctx[CPU1]  │ N:1 (blk_mq_map_queue)
+                            ├── ctx[CPU2]  │
+                            └── ...        │
+                                           ↓
+                                   hctx[0], hctx[1], ... (nr_hw_queues개)
+```
+
+코드상 선택 흐름 (`block/blk-mq.c::__blk_mq_alloc_requests` 등):
+```c
+data->ctx  = blk_mq_get_ctx(q);                              // 현재 CPU의 software queue
+data->hctx = blk_mq_map_queue(data->cmd_flags, data->ctx);   // ctx → hctx (N:1)
+```
+
+**한 줄 요약**: `bdev_get_queue()`는 `request_queue`까지만 안내하고, 그 안에 CPU 수만큼의 `ctx`(진짜 소프트웨어 큐)가 있으며, `ctx`들이 N:1로 `hctx`에 매핑된다. hctx 자체를 직접 주지는 않는다.
+
+### 10.12 "interrupt 큐 + polling 큐 = N개"는 hctx 분배지, 소프트웨어 큐(ctx)와는 다른 층이다
+NVMe 실험에서 자주 언급되는 "interrupt queue + polling queue를 합쳐 20개로 분배"는 **hctx(하드웨어 큐 컨텍스트) 단위의 분배**지, 10.11의 소프트웨어 큐(ctx)와는 **완전히 다른 층**이다. 세 층을 구분해야 한다.
+
+| 층 | 개념 | 개수 결정 주체 |
+|----|------|----------------|
+| NVMe 하드웨어 큐 | 실제 SQ/CQ (디바이스) | NVMe 컨트롤러 + 드라이버 |
+| **hctx** (`blk_mq_hw_ctx`) | 하드웨어 큐 컨텍스트 (1:1) | `nvme.io_queues[TYPE]` |
+| ctx (`blk_mq_ctx`) | 소프트웨어 큐 (per-CPU) | CPU 수 |
+
+**NVMe 드라이버의 큐 분배 코드** (`drivers/nvme/host/pci.c`):
+```c
+static unsigned int poll_queues;
+module_param_cb(poll_queues, &io_queue_count_ops, &poll_queues, 0644);
+MODULE_PARM_DESC(poll_queues, "Number of queues to use for polled IO.");
+```
+`nvme_setup_irqs()`에서 전체 IO 큐를 타입별로 나눈다:
+```c
+poll_queues = min(dev->nr_poll_queues, nr_io_queues - 1);
+dev->io_queues[HCTX_TYPE_POLL] = poll_queues;                     // 폴링 큐
+...
+dev->io_queues[HCTX_TYPE_DEFAULT] = nrirqs - nr_read_queues;      // 인터럽트 큐
+dev->io_queues[HCTX_TYPE_READ]    = nr_read_queues;
+```
+즉 `io_queues[DEFAULT] + io_queues[READ] + io_queues[POLL]` = 전체 IO 큐(예: 20). 이것이 질문하던 분배고, 각 하드웨어 큐는 hctx와 1:1로 매핑된다.
+
+**hctx 타입** (`include/linux/blk-mq.h`):
+```c
+enum hctx_type {
+	HCTX_TYPE_DEFAULT,   // 인터럽트 기반 (일반 I/O)
+	HCTX_TYPE_READ,      // READ 전용
+	HCTX_TYPE_POLL,      // 폴링 I/O
+	HCTX_MAX_TYPES,
+};
+```
+
+**ctx→hctx 매핑은 타입별로 별도 맵** (`struct blk_mq_tag_set`):
+```c
+struct blk_mq_tag_set {
+	struct blk_mq_queue_map map[HCTX_MAX_TYPES];  // 타입별 ctx→hctx 맵
+	unsigned int nr_maps;                          // 1~3
+	unsigned int nr_hw_queues;                     // 전체 hctx 수 (예: 20)
+	...
+};
+```
+`map[DEFAULT]`, `map[READ]`, `map[POLL]`이 각각 "어느 CPU(ctx) → 어느 hctx" 매핑을 따로 가진다.
+
+**3층 그림**
+```
+[층 1] NVMe 하드웨어 SQ/CQ
+         │  (드라이버가 poll_queues 모듈 파라미터로 분배)
+         ↓  1:1
+[층 2] hctx (blk_mq_hw_ctx)  ← ★ "20개(interrupt+poll)" = 이 층
+         ├── HCTX_TYPE_DEFAULT  (interrupt 큐들)
+         ├── HCTX_TYPE_READ     (read 큐들)
+         └── HCTX_TYPE_POLL     (poll 큐들)
+         ↑
+         │  tag_set->map[type] 로 N:1 매핑 (타입별 별도 맵)
+[층 3] ctx (blk_mq_ctx)  ← ★ "소프트웨어 큐", per-CPU
+         ctx[CPU0], ctx[CPU1], ctx[CPU2], ...
+```
+
+**DPAS와의 연결 (핵심)** — `blk_mq_get_hctx_type()` (`block/blk-mq.h`):
+```c
+if (opf & REQ_POLLED)
+	type = HCTX_TYPE_POLL;          // 폴링 hctx로 감
+else if ((opf & REQ_OP_MASK) == REQ_OP_READ)
+	type = HCTX_TYPE_READ;
+```
+- DPAS가 `blk_dpas_prepare_bio()`에서 **`REQ_POLLED`를 켜면** → I/O는 `HCTX_TYPE_POLL` hctx(= poll 큐들)로 향함.
+- `REQ_POLLED`를 끄면 → `HCTX_TYPE_DEFAULT` hctx(= interrupt 큐)로 감.
+- 따라서 `poll_queues=N` 설정과 DPAS mode 전환이 **같은 poll hctx 풀을 공유**한다.
+
+**한 줄 요약**: "interrupt + polling = 20개"는 **hctx(하드웨어 큐) 단위 분배**고, 소프트웨어 큐(ctx)는 그 위 per-CPU 층이라 **완전히 다른 개념**. ctx는 타입별 맵으로 hctx에 N:1 매핑되고, DPAS의 `REQ_POLLED` on/off가 어느 hctx 타입(poll vs interrupt)으로 갈지 결정한다.
+
 ---
 
 ## 11. 현재 남은 과제 (업데이트)
