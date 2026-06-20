@@ -88,6 +88,14 @@ join_by() {
   printf '%s' "${out}"
 }
 
+has_io_mode() {
+  local wanted="$1" mode
+  for mode in "${IO_MODE[@]}"; do
+    [ "${mode}" = "${wanted}" ] && return 0
+  done
+  return 1
+}
+
 ensure_all_cpus_online() {
   local cpu_tool="${UTILS_DIR}/cpu"
   if [ -x "${cpu_tool}" ]; then
@@ -274,6 +282,7 @@ set_mode_knobs() {
       wq "$device" io_poll_delay 0
       wq "$device" pas_enabled 1
       wq "$device" pas_adaptive_enabled 1
+      wq "$device" logging_enabled 2
       wq "$device" switch_param1 "${SW1}"
       wq "$device" switch_param2 "${SW2}"
       wq "$device" switch_param3 "${DPAS_SWITCH_PARAM3:-${threshold}}"
@@ -324,6 +333,8 @@ preflight_device() {
     esac
     if [ "${mode}" = "DPAS" ]; then
       require_knob "${device}" switch_enabled
+      require_knob "${device}" logging_enabled
+      require_knob "${device}" dpas_switch_stats
       for n in 1 2 3 4 5 6 7; do
         require_knob "${device}" "switch_param${n}"
       done
@@ -432,6 +443,11 @@ for rr_rw in "${RR_RW[@]}"; do
           echo "${device} repeat${repeat} ${mode} ${job}T ${rr_rw}"
           ${FIO_CMD} > "./fio_data/${device}/${rr_rw}/${job}T/${mode}/fio_report_${repeat}.log" \
             || die "fio failed for ${device} ${mode} ${job}T"
+          if [ "${mode}" = "DPAS" ]; then
+            cat "/sys/block/${device}/queue/dpas_switch_stats" \
+              > "./fio_data/${device}/${rr_rw}/${job}T/${mode}/dpas_switch_stats_${repeat}.txt" \
+              || die "failed to capture dpas_switch_stats for ${device} ${mode} ${job}T"
+          fi
           sync
           umount "/dev/${device}" || die "umount /dev/${device} failed"
           sleep "${SLEEP_AFTER_RUN}"
@@ -472,6 +488,12 @@ if [ "${DO_PARSE}" -eq 1 ]; then
         [ -f "${f}" ] || continue
         cat "${f}"
       done
+    fi
+    if has_io_mode DPAS; then
+      echo
+      echo "[OUTPUT] parsing dpas_switch_stats -> parsed_data/result_data"
+      "${PYBIN}" ./parse_dpas_switch_stats.py "${REPEATS}" || \
+        echo "[WARN] parse_dpas_switch_stats.py failed." >&2
     fi
   else
     echo "[WARN] parse.py failed (a mode may have produced no fio output)." >&2
