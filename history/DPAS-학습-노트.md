@@ -558,6 +558,268 @@ int bio_poll(struct bio *bio, struct io_comp_batch *iob, unsigned int flags)
         └ 3) done :  blk_mq_poll_pas_complete()  (+ maybe_switch_mode)
 ```
 
+### 3.3.1 왜 `TASK_UNINTERRUPTIBLE`로 표시한 뒤 `bio_poll()`을 하나
+
+이 부분은 처음 보면 이상하다.
+
+```c
+set_current_state(TASK_UNINTERRUPTIBLE);
+
+if (dio->submit.poll_bio &&
+	(dio->submit.poll_bio->bi_opf & REQ_POLLED))
+	bio_poll(dio->submit.poll_bio, NULL, 0);
+else
+	blk_io_schedule();
+```
+
+겉으로는 "잠자는 상태로 바꿨는데 왜 곧바로 poll을 하지?"처럼 보인다. 핵심은
+`set_current_state(TASK_UNINTERRUPTIBLE)`가 **그 자리에서 CPU를 재우는 함수가
+아니라**, completion handler의 wakeup을 받을 수 있게 "나는 지금 기다리는
+중"이라고 task state를 먼저 표시하는 단계라는 점이다.
+
+```text
+set_current_state(TASK_UNINTERRUPTIBLE)
+  = 기다리는 중이라고 표시한다. 아직 CPU를 놓은 것은 아니다.
+
+blk_io_schedule()
+  = 실제로 CPU를 놓고 잔다.
+
+bio_poll()
+  = CPU를 잡은 채 직접 completion queue를 확인한다.
+```
+
+그래서 wait loop의 의도는 다음과 같다.
+
+```text
+1. 먼저 current를 sleep state로 표시한다.
+2. 완료 조건(dio->submit.waiter)을 확인한다.
+3. 완료되지 않았으면:
+   - polled bio이면 직접 bio_poll()한다.
+   - non-polled bio이면 blk_io_schedule()로 잔다.
+4. completion handler가 깨우면 current state가 TASK_RUNNING으로 바뀐다.
+```
+
+순서가 이렇게 되어야 wakeup race를 줄일 수 있다. 완료 조건을 먼저 보고 그 뒤에
+sleep state로 표시하면, 그 짧은 틈에 completion wakeup이 지나가버릴 수 있다.
+그래서 kernel wait loop는 보통 "state 설정 -> 조건 확인 -> sleep 또는 poll" 형태를
+가진다.
+
+현재 `__blk_hctx_poll()`의 `stateful_wait`도 이 구조를 전제로 한다.
+
+```text
+iomap wait loop:
+  current state = TASK_UNINTERRUPTIBLE
+  bio_poll()
+
+__blk_hctx_poll():
+  entry state를 저장한다.
+  stateful_wait = entry state != TASK_RUNNING
+
+poll 중 wakeup 발생:
+  current state가 TASK_RUNNING으로 바뀐다.
+  task_is_running(current)가 true가 된다.
+  inner poll loop에서 빠져나와 상위 wait loop로 돌아간다.
+```
+
+즉 `task_is_running(current)` 탈출은 "poll이 completion을 직접 찾았다"는 뜻이
+아니라, **sleep state에서 들어온 poller가 completion/wakeup 쪽에 의해 깨워졌다**는
+뜻이다. 그래서 이 경로에서는 `poll_countp = UINT_MAX`로 표시해 PAS feedback이
+이 값을 정상 poll 결과로 학습하지 않게 한다.
+
+### 3.3.2 단일 CPU에서 "안 비키면 여전히 안 비키는 것 아닌가"
+
+이 질문이 헷갈리는 이유는 두 가지 현상이 섞여 보이기 때문이다.
+
+```text
+현상 A:
+  busy poller가 CPU를 오래 잡는다.
+  그래서 상위 wait loop로 돌아가지 못한다.
+
+현상 B:
+  I/O completion/wakeup은 이미 발생했다.
+  그런데 inner poll loop가 그 신호를 탈출 조건으로 보지 못한다.
+```
+
+수정 전 문제를 "단일 CPU에서 한 thread가 안 비켜서 다른 thread가 못 돈다"로만
+이해하면 반은 맞고 반은 부족하다. 이 수정의 핵심은 **다른 thread에게 CPU를
+양보시키는 것**이 아니라, **completion path가 current task를 깨운 사실을 poll
+loop가 알아차리게 하는 것**이다.
+
+현재 코드에서 봐야 할 두 조건은 서로 의미가 다르다.
+
+```c
+} while (!need_resched());
+```
+
+`need_resched()`는 "지금 스케줄러를 돌릴 이유가 있는가"를 묻는다. 즉 CPU time
+slice, 더 높은 우선순위 task, preemption 필요 같은 스케줄링 압력을 보는 조건이다.
+반면 "내 I/O가 완료되어 wait loop의 조건이 바뀌었는가"를 직접 묻는 조건은 아니다.
+
+그래서 단일 CPU에서 다음 상황이 가능하다.
+
+```text
+current task가 bio_poll() 안에서 계속 돈다.
+completion path가 waiter를 깨운다.
+current state는 TASK_RUNNING으로 바뀐다.
+하지만 당장 스케줄러를 돌릴 이유는 없을 수 있다.
+need_resched()는 계속 false일 수 있다.
+```
+
+그 경우 기존 loop는 상위 `iomap` wait loop로 빨리 돌아가지 못한다. 상위 loop에만
+있는 완료 조건은 이것이다.
+
+```c
+if (!READ_ONCE(dio->submit.waiter))
+	break;
+```
+
+즉 `dio->submit.waiter == NULL`을 확인해야 sync DIO wait loop가 끝나는데, inner
+poll loop 안에 계속 있으면 이 조건을 다시 볼 수 없다.
+
+그래서 현재 코드에는 별도 탈출 조건이 들어간다.
+
+```c
+long state = get_current_state();
+bool stateful_wait = state != TASK_RUNNING;
+
+...
+
+if (stateful_wait) {
+	if (signal_pending_state(state, current) ||
+	    task_is_running(current)) {
+		if (poll_countp)
+			*poll_countp = UINT_MAX;
+		__set_current_state(TASK_RUNNING);
+		return 1;
+	}
+}
+```
+
+이 코드는 다음 뜻이다.
+
+```text
+1. __blk_hctx_poll()에 들어올 때 current state를 본다.
+2. entry state가 TASK_RUNNING이 아니면,
+   이 poll은 보통 wait loop 안에서 들어온 poll이다.
+3. poll 중 누군가 current state를 TASK_RUNNING으로 바꿨다면,
+   completion/wakeup path가 이 task를 깨웠다는 뜻이다.
+4. 그러면 inner poll loop에 계속 있지 말고 상위 wait loop로 돌아간다.
+```
+
+시각적으로 보면 이렇다.
+
+```text
+단일 CPU, fio random read 4KB, CP mode
+
+fio task
+  |
+  |  set_current_state(TASK_UNINTERRUPTIBLE)
+  v
+bio_poll()
+  |
+  v
+__blk_hctx_poll()
+  |
+  |  q->mq_ops->poll()
+  |    또는 interrupt/softirq completion
+  v
+I/O completion path
+  |
+  |  WRITE_ONCE(dio->submit.waiter, NULL)
+  |  blk_wake_io_task(waiter)
+  |
+  |  if waiter == current:
+  |      __set_current_state(TASK_RUNNING)
+  |  else:
+  |      wake_up_process(waiter)
+  v
+__blk_hctx_poll()
+  |
+  |  task_is_running(current) == true
+  v
+return to bio_poll()
+  |
+  v
+return to iomap wait loop
+  |
+  |  !READ_ONCE(dio->submit.waiter)
+  v
+complete
+```
+
+여기서 중요한 점은 completion이 반드시 "다른 userspace thread가 스케줄되어야"
+생기는 것이 아니라는 점이다.
+
+```text
+polling completion:
+  현재 fio task가 NVMe CQ를 직접 확인하고 completion을 처리할 수 있다.
+  같은 task 안에서 blk_wake_io_task(current)가 실행될 수 있다.
+
+interrupt/softirq completion:
+  일반 thread처럼 scheduler time slice를 기다리는 것이 아니다.
+  현재 CPU에서 실행 중인 task를 끊고 들어올 수 있다.
+```
+
+따라서 현재 수정은 다음 문제를 해결한다.
+
+```text
+해결하지 않는 것:
+  단일 CPU에서 busy poller를 주기적으로 강제 양보시키기
+  CP polling에 100회 budget을 부여하기
+
+해결하는 것:
+  wait 상태에서 들어온 poller가 wakeup되었는데도
+  inner poll loop에 갇혀 상위 completion 조건을 못 보는 문제
+```
+
+짧게 말하면:
+
+```text
+기존 7.1 문제:
+  wakeup이 와도 __blk_hctx_poll()이 그 사실을 모름
+  -> 상위 iomap wait loop로 못 돌아감
+  -> waiter == NULL 확인을 못 함
+
+현재 수정:
+  task_is_running(current)로 wakeup을 감지함
+  -> poll helper가 return
+  -> 상위 iomap wait loop가 waiter == NULL 확인
+  -> 완료
+```
+
+그래서 `poll_countp = UINT_MAX`도 같이 필요하다. 이 탈출은 "정상적으로 N번 poll해서
+completion을 찾았다"는 표본이 아니라 "wakeup 때문에 wait loop로 복귀해야 한다"는
+제어 흐름이다. PAS feedback이 이 값을 일반 poll count로 학습하면 sleep duration
+조정이 오염될 수 있다.
+
+### 3.3.3 이 구조가 원래 7.1-rc4에 있었나
+
+로컬 `dpas-kernel` history 기준으로 구분해야 한다.
+
+```text
+8fac1449a Import Linux v7.1-rc4
+  - wait loop 자체는 있었다.
+  - set_current_state(TASK_UNINTERRUPTIBLE)도 있었다.
+  - 완료 전이면 blk_io_schedule()로 자는 구조였다.
+  - sync DIO wait loop 안에서 bio_poll()하는 branch는 없었다.
+
+347554c8d dio의 hipri path 복구
+  - dio->submit.poll_bio 필드를 복구했다.
+  - IOCB_HIPRI bio를 dio->submit.poll_bio에 저장했다.
+  - sync DIO wait loop에서 REQ_POLLED bio이면 bio_poll()하도록 복구했다.
+```
+
+따라서 정확한 표현은 이렇다.
+
+```text
+원래 7.1-rc4 import:
+  sleep-state wait loop는 있음.
+  sync DIO bio_poll branch는 없음.
+
+현재 DPAS 7.1:
+  5.18 DPAS 실험에 필요했던 sync DIO HIPRI polling branch를 복구함.
+```
+
 ### 3.4 시나리오 A — PAS mode에서 4KB read 하나가 지나갈 때
 
 전제:
