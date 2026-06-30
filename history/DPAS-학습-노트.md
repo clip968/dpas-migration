@@ -1418,59 +1418,73 @@ PAS는 "이번 bucket에서 얼마나 자야 하는가"를 직접 학습한다. 
 
 ### 6.1 상태 기계 (FSM)
 
-```
-                         full DPAS state machine
-                       (switch_enabled=1 일 때만)
-
-                          시작 = PAS
-                              │
-              ┌───────────────┴────────────────┐
-              │                                 │
-        tf > param1                    param4>0 && avg_qd==10
-              │ (sleep이 d_init에 자주        │ (평균 QD ≈ 1 → sleep 이득 없음)
-              ▼  깔림 = 장치 바쁨)            ▼
-        ┌─────────┐                       ┌─────────┐
-        │   OL    │                       │   CP    │
-        └─────────┘                       └─────────┘
-          │     │                              │
- avg_qd   │     │ avg_qd > param3              │ cp_cnt >= param6
- <= param2│     │ (QD 높음 = 과부하)           │ (관찰 끝)
-          ▼     ▼                              ▼
-       ┌─────────┐   int_cnt >= param7    ┌─────────┐
-       │   PAS   │ ◀───────────────────── │   INT   │
-       └─────────┘   (submit path에서)    └─────────┘
-                                              ▲
-                                              │ OL의 avg_qd > param3
-                                              └────────────────────
-```
-
-전이 요약은 이렇게 읽으면 된다.
-
 ```text
-PAS
-  -- if dpas_tf > switch_param1 -->
-OL
+                 full DPAS state machine (switch_enabled = 1)
+                 start mode = PAS
+                 pN = switch_paramN
 
-PAS
-  -- if switch_param4 > 0 and avg_qd == 10 -->
-CP
-
-CP
-  -- if dpas_cp_cnt >= switch_param6 -->
-PAS
-
-OL
-  -- if avg_qd <= switch_param2 -->
-PAS
-
-OL
-  -- if avg_qd > switch_param3 -->
-INT
-
-INT
-  -- if dpas_int_cnt >= switch_param7 at submit path -->
-OL
+        +------------------------- poll path -------------------------+
+        |                  blk_dpas_maybe_switch_mode()              |
+        |                                                            |
+        |  +---------+       (2) PAS stressed        +---------+     |
+        |  |   PAS   | ----------------------------> |   OL    |     |
+        |  | sleep + |                               | observe |     |
+        |  | poll    | <---------------------------- | polling |     |
+        |  +---------+        (5) QD low             +---------+     |
+        |      |  ^                                      |           |
+        |  (3) |  | (4)                                  | (6)       |
+        | QD=1 |  | CP window done                       | QD high   |
+        |      v  |                                      v           |
+        |  +---------+                              to submit/INT    |
+        |  |   CP    |                                               |
+        |  | classic |                                               |
+        |  | poll    |                                               |
+        |  +---------+                                               |
+        |                                                            |
+        |  stay in PAS: (1)                                          |
+        |  stay in OL : (7)                                          |
+        |  stay in CP : cp_cnt < p6                                  |
+        +------------------------------------------------------------+
+                                                               |
+                                                               v
+        +------------------------ submit path -----------------------+
+        |                    blk_dpas_prepare_bio()                  |
+        |                                                            |
+        |        from OL/QD high                                     |
+        |              |                                             |
+        |              v                                             |
+        |        +---------+                                         |
+        |        |   INT   |                                         |
+        |        | interrupt                                         |
+        |        | mode    |                                         |
+        |        +---------+                                         |
+        |              |                                             |
+        |              | (8) INT window done                         |
+        |              v                                             |
+        |           back to OL                                       |
+        |                                                            |
+        |  stay in INT: int_cnt < p7                                 |
+        +------------------------------------------------------------+
 ```
+
+시각적으로는 이렇게 읽으면 된다.
+
+- 위쪽 큰 박스는 poll path에서 평가되는 mode다. `PAS`, `OL`, `CP`는 `bio_poll()` 쪽으로 들어온 뒤 `blk_dpas_maybe_switch_mode()`에서 전이된다.
+- 아래쪽 큰 박스는 submit path에서 평가되는 mode다. `INT`에서는 `REQ_POLLED`를 지우기 때문에 poll path로 돌아오지 못하고, `blk_dpas_prepare_bio()`가 직접 `INT -> OL`을 처리한다.
+- 그림의 `(1)`~`(8)` 번호는 아래 표의 번호와 맞춘 것이다. 그림은 흐름을 먼저 보여주고, 표는 정확한 조건을 보여준다.
+
+번호 기준 전이 요약은 이렇게 읽으면 된다.
+
+| 번호 | 현재 mode | 평가 위치 | 조건 | 다음 mode | 의미 |
+|---|---|---|---|---|---|
+| 1 | PAS | poll path | `dpas_pas_cnt < switch_param5` 또는 PAS exit 조건 불충족 | PAS | PAS 관찰 window 유지 |
+| 2 | PAS | poll path | `dpas_pas_cnt >= switch_param5 && dpas_tf > switch_param1` | OL | PAS sleep 보정이 자주 한계에 걸려 OL 관찰로 이동 |
+| 3 | PAS | poll path | `dpas_pas_cnt >= switch_param5 && dpas_tf <= switch_param1 && switch_param4 > 0 && avg_qd == 10` | CP | 평균 QD가 1 수준이라 sleep 이득이 작다고 보고 classic polling 시도 |
+| 4 | CP | poll path | `dpas_cp_cnt >= switch_param6` | PAS | CP 관찰 window가 끝나면 PAS로 복귀 |
+| 5 | OL | poll path | `dpas_ol_cnt >= switch_param5 && avg_qd <= switch_param2` | PAS | OL에서 보니 QD가 낮아서 PAS sleep을 다시 써도 됨 |
+| 6 | OL | poll path | `dpas_ol_cnt >= switch_param5 && avg_qd > switch_param3` | INT | QD가 높아 polling이 과부하라 interrupt mode로 이동 |
+| 7 | OL | poll path | `dpas_ol_cnt < switch_param5` 또는 `param2 < avg_qd <= param3` | OL | OL 관찰을 더 유지 |
+| 8 | INT | submit path | `dpas_int_cnt >= switch_param7` | OL | interrupt window가 끝나면 OL로 돌아가 polling 가능성을 다시 관찰 |
 
 이 그림에서 봐야 할 것: `PAS`, `CP`, `OL`의 출구는 poll path의 `blk_dpas_maybe_switch_mode()`에 있다. `INT`의 출구만 submit path의 `blk_dpas_prepare_bio()`에 있다. INT에서는 `REQ_POLLED`가 지워져 `bio_poll()`이 호출되지 않기 때문이다.
 
