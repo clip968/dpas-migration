@@ -2,33 +2,21 @@
 
 ## 현재 진행 중인 사항
 
-- 현재 위치는 host DPAS runner 실행 중 발생한 `PAS 4T RR` 커널 divide error에 대해 duration clamp 테스트 변경을 적용한 뒤, host 검증으로 넘어가기 전 단계다.
-- 이전 host DPAS 커널 `7.1.0-rc4-dpas-host-g63a80d0b9d99`로 부팅했고, `/sys/block/nvme1n1/queue/dpas_switch_stats` 존재와 초기값 0은 확인했다.
-- 현재 `dpas-kernel` checkout은 `465aff726 이전의 u64 div overflow 문제를 dur 상한선 제한으로 테스트`이고, `dpas-kernel` 내부 작업트리는 clean이다.
-- `scripts/micro_4krr/run_host_dpas_optane.sh`는 DPAS run 직후 `dpas_switch_stats`를 저장하도록 수정돼 있다.
-- `scripts/micro_4krr/parse_dpas_switch_stats.py`도 추가돼 stats 표를 raw/summary 결과로 파싱한다.
-- 단일 CPU host DPAS 실험 중 `nvme1n1 repeat1 PAS 4T RR`에서 fio가 중단됐고, 사용자 shell `dmesg` 기준 커널 `divide error`가 발생했다.
-- 이후 사용자는 CPU0 고정으로 `DPAS_JOB_LIST=1,2,4,8` runner를 다시 돌렸고, 2T에서 매우 느리다고 보고했다. 현재 확인된 2T 병목은 PAS가 아니라 pure CP 구간이다.
+- 현재 문제는 LHP가 계속 멈추거나 끝나지 않는 현상 때문에, 이전에 덜 위험했던 커널로 롤백할지 현재 커널에서 계속 디버깅할지 판단하는 단계다.
+- root repo 기준 `dpas-kernel` submodule pointer는 `9193bdd03`에서 `ee97b44cf`로 이동해 있고, `dpas-kernel` 내부 작업트리는 clean이다.
+- 최근 CP/LHP/PAS poll-path 변경은 `dpas-kernel/block/blk-mq.c`에 집중돼 있다.
+- 오늘 판단 내용은 `history/2026-07-02.md`에 정리했다.
 
 ## 지금 알아야 하는 사항
 
-- Oops 위치는 `blk_mq_poll_bio+0x1b8/0x800`이다.
-- objdump 매핑상 원래 fault 코드는 `dpas-kernel/block/blk-mq.c`의 `stat->dur = mul_u64_u64_div_u64(stat->dur, (u64)stat->adj, q->div);`였다.
-- 현재 checkout에서는 이 직접 호출이 `blk_mq_poll_pas_scale_duration()` helper로 대체되어 있고, `BLK_MQ_PAS_MAX_DUR_NS 100000ULL` 상한을 둔 테스트 변경이 들어가 있다.
-- fault 명령은 `divq 0x120(%r9)`이고, `request_queue.div` offset `0x120`과 맞아 분모는 `q->div`로 보인다.
-- x86 `divide error`는 분모 0뿐 아니라 quotient overflow에서도 발생하므로, 현재 가설은 PAS adaptive duration 계산에서 `stat->dur` 또는 `stat->adj`가 커져 overflow가 난 경우다.
-- 실패 모드는 `PAS`이고 `switch_enabled=0` 경로라서, DPAS mode switch보다 PAS adaptive duration 계산을 먼저 봐야 한다.
-- 새 2T slowdown 관찰에서는 `2T/CP/fio_report_1.log`가 `Starting 2 processes`에서 멈췄고, fio 명령은 `--numjobs=2 --cpus_allowed=0 --cpus_allowed_policy=split --hipri`였다. queue knob는 `io_poll=1`, `io_poll_delay=-1`, `pas_enabled=0`, `pas_adaptive_enabled=0`, `switch_enabled=0`이었다.
-- 따라서 2T slowdown은 우선 classic polling job 2개를 CPU 0 하나에 올린 CPU oversubscription으로 해석한다. CP는 sleep 없이 busy-poll하므로 단일 CPU 확장성 테스트의 기준선으로 부적합할 수 있다.
-- 바로 이어서 볼 핵심 파일은 다음이다.
-  - `dpas-kernel/block/blk-mq.c`
-  - `dpas-kernel/block/blk-core.c`
-  - `dpas-kernel/include/linux/blkdev.h`
-  - 원본 비교용 5.18 DPAS 파일
+- 2026-06-06 host Optane smoke에서 덜 위험했던 기준선은 `7.1.0-rc4-dpas-host-g4be3fefb1311`이다. 당시 `INT/CP/LHP/PAS` 20개 fio run이 모두 `err=0`이었고 새 NVMe timeout/reset/panic/oops는 없었다.
+- 이 기준선으로 완전 롤백하면 안정 기준은 강하지만, 이후의 full DPAS/PAS duration/bio ctx/livelock 관련 작업을 크게 잃는다.
+- 최근 회귀 격리 범위는 `9193bdd03..ee97b44cf`이고, 차이는 `block/blk-mq.c` 약 40줄이다. cookie guard, pre-oneshot poll, standalone CP guard, LHP/PAS sleep 호출 순서가 핵심이다.
+- 현재 코드에서 LHP는 `pas_enabled=0`, `io_poll_delay=0`이라 `standalone_cp`가 아니며, pre-oneshot poll 뒤 completion을 못 잡으면 `blk_mq_poll_lhp_sleep()`으로 들어간다.
+- LHP sleep duration은 `q->poll_stat[bucket].mean / 2`이고 별도 상한이 없다. 큰 latency sample이나 queue 전역 `poll_stat` 오염이 있으면 단일 CPU에서 completion reaping이 늦어질 수 있다.
 
 ## 다음 판단 지점
 
-- duration clamp 테스트 변경은 적용됐지만, 최종 채택 여부는 host 검증 결과를 보고 사용자 결정이 필요하다.
-- 현재 host가 `465aff726` 기반 커널로 빌드/설치/부팅된 상태인지 확인해야 한다.
-- 먼저 host PAS 4T RR smoke test를 재실행하고, 통과하면 DPAS stats 저장 실험으로 돌아간다.
-- 단일 CPU에서 job scaling을 계속 보려면 먼저 `DPAS_IO_MODE=INT,PAS,DPAS`처럼 CP를 제외하거나, CP 포함 비교는 `taskset -c 0-1` 이상으로 CPU 수와 job 수를 맞춰 다시 확인한다.
+- 막힌 fio task의 `wchan`/stack을 확인해 `blk_mq_poll_sleep_nsec()`/`io_schedule()`에서 자는지, `__blk_hctx_poll()`/`nvme_poll()` busy-poll에서 못 빠지는지 먼저 분리한다.
+- 우선순위는 완전 롤백보다 `ee97b44cf`, `932425da8`, `bd3df84d9`, `9193bdd03` 커밋 단위 테스트로 최근 회귀 지점을 좁히는 것이다.
+- 시간이 급해 데이터 확보가 더 중요하면 `4be3fefb` host 커널은 known-less-risk 기준선으로 부팅할 수 있다. 다만 그 결과만으로 현재 코드의 root cause가 해결된 것은 아니다.
